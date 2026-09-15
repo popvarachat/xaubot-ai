@@ -9,11 +9,11 @@ PROFILE = BrokerSymbolProfile(
     symbol="GOLDmicro",
     point=0.01,
     tick_size=0.01,
-    tick_value=0.10,
-    contract_size=10.0,
+    tick_value=0.01,
+    contract_size=1.0,
     volume_min=0.1,
     volume_max=100.0,
-    volume_step=0.1,
+    volume_step=0.01,
 )
 
 
@@ -42,7 +42,7 @@ def test_replay_charges_55_point_spread_and_uses_broker_lot_step():
     assert stats.executed_trades == 1
     assert stats.skipped_trades == 0
     assert stats.trades[0].lot_size >= 0.1
-    assert round(stats.trades[0].lot_size * 10) == stats.trades[0].lot_size * 10
+    assert round(stats.trades[0].lot_size * 100) == stats.trades[0].lot_size * 100
     assert stats.trades[0].entry_exec_price > trades[0].entry_price
     assert stats.trades[0].exit_exec_price < trades[0].exit_price
 
