@@ -53,6 +53,11 @@ data/trade_logs/ml_data/*.csv
 models/*.pkl
 models/*.joblib
 models/*.h5
+models/**/*.pkl
+models/**/*.joblib
+models/**/*.h5
+models/candidates/**/training_data.parquet
+models/reports/lifecycle_*/
 
 # Backtest results (generated)
 backtests/results/*.csv
