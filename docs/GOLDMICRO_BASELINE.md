@@ -72,6 +72,35 @@ The server name is documentation/baseline only. Runtime connection settings must
 5. Backtests must charge bid/ask spread explicitly and should add slippage, commission, and swap where applicable.
 6. Broker-reported tick economics should be cross-checked with MT5 `order_calc_profit()` before live enablement.
 
+## One-click baseline replay
+
+The repository already contains legacy backtest result workbooks, including `backtests/24_final_combined_results/*.xlsx`. `scripts/run_goldmicro_baseline.py` converts those legacy trade records into a GOLDmicro/THB baseline without changing the original signal timing.
+
+From the repository root on the Windows machine where MT5 is already logged in:
+
+```powershell
+py -m pip install pandas openpyxl
+py scripts\run_goldmicro_baseline.py
+```
+
+Default behavior:
+
+- uses the newest `#24 Final Combined` XLSX workbook;
+- uses the current MT5 account balance as starting capital (override with `--capital`);
+- calibrates account-currency cash P/L with read-only `order_calc_profit()`;
+- uses `1.0%` risk per trade by default (override with `--risk`);
+- evaluates spread scenarios `55`, `70`, and `100` points;
+- reports executed/skipped trades, WR, PF, net P/L, max DD in THB and %, expectancy, and Sharpe;
+- saves a local JSON report under `backtests/goldmicro_baseline_results/`.
+
+Example overrides:
+
+```powershell
+py scripts\run_goldmicro_baseline.py --capital 100000 --risk 0.5 --spreads 55,70,100 --slippage 5
+```
+
+The baseline runner does **not** submit, modify, or close orders. Commission and swap are currently set to zero in this baseline pass until broker/account-specific values are verified, so results must be labeled provisional.
+
 ## Validation plan before optimization
 
 - Replace fixed XAUUSD pip-value assumptions in risk and backtest code paths.
@@ -90,6 +119,7 @@ The branch now contains an isolated GOLDmicro foundation plus a post-trade repla
 - `src/goldmicro_risk.py`: conservative risk-based GOLDmicro sizing.
 - `backtests/goldmicro_cost_model.py`: Bid/Ask-aware execution-cost accounting using calibrated account-currency cash P/L when provided.
 - `backtests/goldmicro_replay.py`: replays legacy trade records with sequential equity, broker-valid lot sizing, spread/slippage/fees, PF, expectancy, Sharpe, and maximum drawdown.
+- `scripts/run_goldmicro_baseline.py`: read-only one-click XLSX replay using live MT5 account-currency calibration and 55/70/100 spread stress scenarios.
 - `.github/workflows/goldmicro-unit-tests.yml`: isolated CI for the new GOLDmicro components.
 - `scripts/dump_goldmicro_spec.py`: read-only runtime symbol-spec and account-currency calibration capture without printing credentials or placing orders.
 
@@ -97,4 +127,4 @@ The replay stage intentionally preserves the legacy signal/entry/exit timing. It
 
 ## Scope of this branch
 
-`feat/goldmicro-broker-profile-v1` does **not** enable live trading or change production execution behavior. The next stage is to replay a sufficiently long historical sample with broker-valid sizing and realistic costs before strategy optimization.
+`feat/goldmicro-broker-profile-v1` does **not** enable live trading or change production execution behavior. The next stage is to run the GOLDmicro baseline replay, verify commission/swap assumptions, and only then proceed to walk-forward strategy optimization.
