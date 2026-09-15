@@ -17,6 +17,19 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _resolve_git_sha(explicit: str | None) -> str:
+    if explicit and explicit != "auto":
+        return explicit
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            text=True,
+        ).strip()
+    except Exception:
+        return "unknown"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=24)
@@ -24,10 +37,11 @@ def main() -> int:
     ap.add_argument("--execute", action="store_true", help="train candidates locally; otherwise plan only")
     ap.add_argument("--symbol", default="GOLDmicro")
     ap.add_argument("--timeframe", default="M15")
-    ap.add_argument("--git-sha", default="unknown")
+    ap.add_argument("--git-sha", default="auto")
     ap.add_argument("--batch-id")
     args = ap.parse_args()
 
+    git_sha = _resolve_git_sha(args.git_sha)
     batch_id = args.batch_id
     train_cmd = [
         sys.executable,
@@ -35,7 +49,7 @@ def main() -> int:
         "--limit", str(args.limit),
         "--symbol", args.symbol,
         "--timeframe", args.timeframe,
-        "--git-sha", args.git_sha,
+        "--git-sha", git_sha,
     ]
     if batch_id:
         train_cmd += ["--batch-id", batch_id]
@@ -43,6 +57,7 @@ def main() -> int:
         train_cmd.append("--execute")
 
     print("=== GOLDmicro Challenger Research Pipeline ===")
+    print(f"Git SHA    : {git_sha}")
     print(f"Candidates : {args.limit}")
     print(f"Shortlist  : {args.top_k}")
     print(f"Mode       : {'EXECUTE NON-LIVE' if args.execute else 'PLAN ONLY'}")
@@ -51,7 +66,6 @@ def main() -> int:
     if result.returncode != 0:
         return result.returncode
 
-    # Plan-only intentionally stops here because there are no training metrics to screen.
     if not args.execute:
         print("\nPLAN COMPLETE. Re-run once with --execute to train+screen the whole batch.")
         return 0
