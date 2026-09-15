@@ -10,11 +10,16 @@ Stages in one run:
    broker-correct sizing, execution cost, PF/DD/expectancy gates,
 6) emit a shadow queue for later observation/audit.
 
+A zero-candidate shortlist is a valid research result. The pipeline records that
+state and stops cleanly instead of weakening the gate or treating it as a runtime
+failure.
+
 No candidate is promoted and no live trading behavior is changed.
 """
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -132,6 +137,7 @@ def main() -> int:
         return result.returncode
 
     strategy_report = None
+    strategy_state = None
     shadow_queue = report_dir / "shadow_queue.json"
     if args.samples > 1:
         strategy_queue = report_dir / "strategy_oos_queue.json"
@@ -152,6 +158,11 @@ def main() -> int:
         if result.returncode != 0:
             return result.returncode
         strategy_report = report_dir / "strategy_oos_report.json"
+        if strategy_report.exists():
+            try:
+                strategy_state = json.loads(strategy_report.read_text(encoding="utf-8")).get("state")
+            except Exception:
+                strategy_state = None
 
     print("\n=== FULL RESEARCH VALIDATION COMPLETE ===")
     print(f"Training       : {training_results}")
@@ -159,7 +170,11 @@ def main() -> int:
         print(f"AUC screening  : {report_dir / 'multisample_screening.json'}")
         print(f"Strategy OOS   : {strategy_report}")
         print(f"Shadow queue   : {shadow_queue}")
-        print("Next gate      : independent review + non-executing shadow observation")
+        if strategy_state == "NO_ELIGIBLE_CONFIGURATIONS":
+            print("Research state : NO_ELIGIBLE_CONFIGURATIONS")
+            print("Next gate      : redesign/re-align predictive target/features; do not shadow or promote")
+        else:
+            print("Next gate      : independent review + non-executing shadow observation")
     else:
         print(f"Screening      : {report_dir / 'candidate_screening.json'}")
         print(f"Shadow queue   : {shadow_queue}")
