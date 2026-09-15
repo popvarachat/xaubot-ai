@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
+
 from backtests.goldmicro_cost_model import BacktestCostConfig
-from scripts.run_goldmicro_strategy_oos import _sample_for_cost
+from scripts.run_goldmicro_strategy_oos import _sample_for_cost, run_queue
 from src.goldmicro_strategy_oos import (
     SampleStrategyResult,
     StrategyOOSThresholds,
@@ -101,3 +103,30 @@ def test_cross_cost_rewrite_handles_same_and_alternate_profiles() -> None:
     assert normal["model_id"].endswith("-normal-s01")
     assert conservative["model_id"].endswith("-conservative-s01")
     assert normal["xgb_path"] == conservative["xgb_path"]
+
+
+def test_empty_strategy_queue_is_valid_terminal_research_outcome(tmp_path) -> None:
+    queue_path = tmp_path / "strategy_oos_queue.json"
+    queue_path.write_text(
+        json.dumps(
+            {
+                "batch_id": "batch-zero",
+                "state": "AWAITING_STRATEGY_OOS_PF_DD_COST",
+                "samples_per_configuration": 5,
+                "configurations": [],
+                "promotion_performed": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report_path = run_queue(queue_path, thresholds=StrategyOOSThresholds())
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    shadow = json.loads((tmp_path / "shadow_queue.json").read_text(encoding="utf-8"))
+
+    assert report["state"] == "NO_ELIGIBLE_CONFIGURATIONS"
+    assert report["strategy_oos_executed"] is False
+    assert report["robust_pass_count"] == 0
+    assert report["promotion_performed"] is False
+    assert shadow["state"] == "NO_ELIGIBLE_CONFIGURATIONS"
+    assert shadow["configurations"] == []
