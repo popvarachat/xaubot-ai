@@ -188,6 +188,7 @@ def main() -> int:
             "initial_capital": initial_capital,
             "risk_per_trade_percent": args.risk,
             "slippage_points_per_side": args.slippage,
+            "calibration_note": "Uses current MT5 account-currency calibration for historical trades; provisional until historical FX conversion is modeled.",
             "broker_profile": {
                 "point": profile.point,
                 "tick_size": profile.tick_size,
@@ -207,6 +208,7 @@ def main() -> int:
         print(f"Capital  : {initial_capital:,.2f} {currency}")
         print(f"Calibration: {profile.cash_per_price_unit_per_lot:.4f} {currency} per +1.00 price / 1.00 lot")
         print(f"Broker volume: min={profile.volume_min:g}, step={profile.volume_step:g}, max={profile.volume_max:g}")
+        print("FX note: historical trades use the current account-currency calibration in this provisional baseline.")
 
         for sheet, trades in trade_sheets:
             print(f"\nSheet: {sheet} ({len(trades)} legacy trades)")
@@ -262,7 +264,7 @@ def main() -> int:
         out_file = out_dir / f"goldmicro_baseline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         out_file.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"\nSaved report: {out_file}")
-        print("NOTE: commission and swap are currently 0; this is a pre-optimization baseline, not a profitability guarantee.")
+        print("NOTE: commission/swap are 0 and historical FX is not yet modeled; this is a provisional pre-optimization baseline, not a profitability guarantee.")
         return 0
     finally:
         mt5.shutdown()
