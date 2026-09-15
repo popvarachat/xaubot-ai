@@ -7,6 +7,10 @@ active Champion paths. No orders are sent and no promotion occurs.
 The execute path freezes one M15/H1 market snapshot for the whole batch so every
 candidate is trained and screened against the same data cut. This avoids unfair
 candidate-to-candidate drift caused by repeatedly fetching moving MT5 history.
+
+Research MT5 access deliberately attaches to the operator's already logged-in
+terminal session. It does not require MT5_LOGIN / MT5_PASSWORD / MT5_SERVER in
+.env and does not expose an order-send path.
 """
 from __future__ import annotations
 
@@ -22,8 +26,7 @@ if str(ROOT) not in sys.path:
 
 from src.challenger_batch import build_challenger_specs, write_batch_plan
 from src.goldmicro_candidate_trainer import train_candidate
-from src.config import get_config
-from src.mt5_connector import MT5Connector
+from src.mt5_research_connector import MT5ResearchConnector
 from src.model_registry import sha256_file
 
 
@@ -48,6 +51,7 @@ def run_training_batch(
     timeframe: str = "M15",
     git_sha: str = "unknown",
     batch_id: str | None = None,
+    mt5_path: str | None = None,
 ) -> Path:
     stamp = batch_id or datetime.now().strftime("%Y%m%d_%H%M%S")
     report_dir = ROOT / "models" / "reports" / f"challenger_train_{stamp}"
@@ -80,13 +84,8 @@ def run_training_batch(
         return out
 
     print("Mode       : EXECUTE TRAINING (NON-LIVE)")
-    config = get_config()
-    connector = MT5Connector(
-        login=config.mt5_login,
-        password=config.mt5_password,
-        server=config.mt5_server,
-        path=config.mt5_path,
-    )
+    print("MT5 access : READ-ONLY ATTACH TO LOGGED-IN TERMINAL SESSION")
+    connector = MT5ResearchConnector(path=mt5_path)
     results = []
     snapshot = {}
     connector.connect()
@@ -118,6 +117,7 @@ def run_training_batch(
             "m15": m15_meta,
             "h1": h1_meta,
             "fingerprint": fingerprint,
+            "mt5_access_mode": "logged_in_terminal_session_read_only",
         }
         (report_dir / "market_snapshot.json").write_text(
             json.dumps(snapshot, indent=2), encoding="utf-8"
@@ -197,6 +197,10 @@ def main() -> None:
     ap.add_argument("--timeframe", default="M15")
     ap.add_argument("--git-sha", default="unknown")
     ap.add_argument("--batch-id", help="optional stable id for this research batch")
+    ap.add_argument(
+        "--mt5-path",
+        help="optional MT5 terminal executable path; credentials are never accepted by this research runner",
+    )
     args = ap.parse_args()
 
     run_training_batch(
@@ -206,6 +210,7 @@ def main() -> None:
         timeframe=args.timeframe,
         git_sha=args.git_sha,
         batch_id=args.batch_id,
+        mt5_path=args.mt5_path,
     )
 
 
