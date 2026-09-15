@@ -16,16 +16,33 @@ import polars as pl
 from backtests.ml_v2.ml_v2_model import ModelType, TradingModelV2
 from src.challenger_batch import ChallengerSpec, assert_isolated_output
 from src.feature_eng import FeatureEngineer
+import src.goldmicro_candidate_trainer as candidate_trainer
 from src.goldmicro_candidate_trainer import (
     OOS_GAP_BARS,
     TRAIN_RATIO,
     _build_model_features_after_hmm,
-    _prepare_candidate_data,
     xgb_params_for_profile,
 )
 from src.goldmicro_causal_hmm import predict_causal_regimes
+from src.goldmicro_causal_smc import GoldmicroCausalSMCAnalyzer
 from src.model_registry import ModelManifest, sha256_file, write_manifest
 from src.regime_detector import MarketRegimeDetector
+
+
+def _prepare_prefix_causal_data(*args, **kwargs):
+    """Call the shared preparation path with the research-only causal SMC wrapper.
+
+    The shared candidate trainer intentionally keeps its legacy SMC import for
+    compatibility.  Target-alignment research must never fall back to retroactive
+    order-block annotations, so the module-global analyzer is replaced only for
+    this call and restored immediately afterwards.
+    """
+    original = candidate_trainer.SMCAnalyzer
+    candidate_trainer.SMCAnalyzer = GoldmicroCausalSMCAnalyzer
+    try:
+        return candidate_trainer._prepare_candidate_data(*args, **kwargs)
+    finally:
+        candidate_trainer.SMCAnalyzer = original
 
 
 def train_target_aligned_candidate(
@@ -61,7 +78,7 @@ def train_target_aligned_candidate(
     data_dir.mkdir(exist_ok=True)
 
     started = datetime.now()
-    df, df_h1 = _prepare_candidate_data(
+    df, df_h1 = _prepare_prefix_causal_data(
         connector,
         symbol,
         timeframe,
@@ -70,9 +87,8 @@ def train_target_aligned_candidate(
         raw_h1=raw_h1,
     )
 
-    # _prepare_candidate_data creates the legacy one-bar target.  Overwrite it
-    # explicitly here so the target-alignment study changes only the prediction
-    # horizon while preserving the exact same causal feature pipeline.
+    # Shared preparation creates the legacy one-bar target. Overwrite it here so
+    # only the prediction horizon changes while every feature remains causal.
     df = FeatureEngineer().create_target(df, lookahead=target_lookahead_bars)
 
     split_idx = int(len(df) * TRAIN_RATIO)
@@ -143,6 +159,7 @@ def train_target_aligned_candidate(
         "xgb_profile": spec.xgb_profile,
         "hmm_lookback": spec.hmm_lookback,
         "hmm_inference": "causal_forward_filter_with_confirmation",
+        "smc_history": "prefix_causal_research_wrapper",
         "confidence_threshold": spec.confidence_threshold,
         "seed": spec.seed,
         "cost_profile": spec.cost_profile,
