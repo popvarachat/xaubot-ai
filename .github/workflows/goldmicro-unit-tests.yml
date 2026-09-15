@@ -28,6 +28,9 @@ on:
       - 'scripts/train_goldmicro_challenger_batch.py'
       - 'scripts/score_goldmicro_challenger_batch.py'
       - 'scripts/run_goldmicro_challenger_research.py'
+      - 'scripts/goldmicro_research_preflight.py'
+      - 'scripts/setup_goldmicro_research_env.ps1'
+      - 'requirements-goldmicro-research.txt'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
@@ -65,6 +68,9 @@ on:
       - 'scripts/train_goldmicro_challenger_batch.py'
       - 'scripts/score_goldmicro_challenger_batch.py'
       - 'scripts/run_goldmicro_challenger_research.py'
+      - 'scripts/goldmicro_research_preflight.py'
+      - 'scripts/setup_goldmicro_research_env.ps1'
+      - 'requirements-goldmicro-research.txt'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
@@ -112,6 +118,7 @@ jobs:
           scripts/train_goldmicro_challenger_batch.py
           scripts/score_goldmicro_challenger_batch.py
           scripts/run_goldmicro_challenger_research.py
+          scripts/goldmicro_research_preflight.py
           src/model_lifecycle.py
           src/model_registry.py
           src/challenger_batch.py
