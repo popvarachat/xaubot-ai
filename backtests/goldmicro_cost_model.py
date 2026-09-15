@@ -113,8 +113,7 @@ class GoldmicroCostModel:
     ) -> TradeCostBreakdown:
         if lot_size <= 0:
             raise ValueError("lot_size must be positive")
-        ticks = favorable_price_delta / self.profile.tick_size
-        gross = ticks * self.profile.tick_value * lot_size
+        gross = self.profile.cash_pnl_for_price_delta(favorable_price_delta, lot_size)
         commission = self.config.commission_per_lot_round_turn * lot_size
         swap = self.config.swap_per_lot * lot_size * swap_days
         net = gross - commission - swap
