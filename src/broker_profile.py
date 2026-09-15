@@ -22,6 +22,8 @@ class BrokerSymbolProfile:
     volume_min: float
     volume_max: float
     volume_step: float
+    cash_per_price_unit_per_lot: float | None = None
+    cash_currency: str | None = None
 
     @classmethod
     def from_mt5_symbol_info(cls, symbol: str, info: Any) -> "BrokerSymbolProfile":
@@ -29,6 +31,11 @@ class BrokerSymbolProfile:
 
         Uses trade_tick_value_loss when available because sizing is risk-side.
         Falls back to trade_tick_value for brokers that expose only one value.
+
+        Note: some CFD symbols/brokers expose tick metadata that does not match
+        ``order_calc_profit()`` in the account currency. In that case set
+        ``cash_per_price_unit_per_lot`` from a read-only MT5 calibration and the
+        profile will prefer that calibrated cash model.
         """
         if info is None:
             raise ValueError(f"No MT5 symbol info available for {symbol}")
@@ -64,19 +71,34 @@ class BrokerSymbolProfile:
             raise ValueError(f"Invalid broker profile fields for {self.symbol}: {', '.join(invalid)}")
         if self.volume_max < self.volume_min:
             raise ValueError("volume_max must be >= volume_min")
+        if self.cash_per_price_unit_per_lot is not None and self.cash_per_price_unit_per_lot <= 0:
+            raise ValueError("cash_per_price_unit_per_lot must be positive when provided")
 
     def spread_points(self, bid: float, ask: float) -> float:
         if ask < bid:
             raise ValueError("ask must be >= bid")
         return (ask - bid) / self.point
 
+    def cash_pnl_for_price_delta(self, price_delta: float, lot_size: float) -> float:
+        """Convert a favorable price delta into account-currency P/L.
+
+        If a read-only MT5 ``order_calc_profit()`` calibration is available,
+        prefer it over raw tick metadata because the broker/account conversion
+        path can differ from the naive ``ticks * tick_value`` calculation.
+        """
+        if lot_size < 0:
+            raise ValueError("lot_size cannot be negative")
+        if self.cash_per_price_unit_per_lot is not None:
+            return price_delta * self.cash_per_price_unit_per_lot * lot_size
+        ticks = price_delta / self.tick_size
+        return ticks * self.tick_value * lot_size
+
     def cash_risk_per_lot(self, entry_price: float, stop_price: float) -> float:
         """Return monetary loss for 1.0 lot if stop is hit, excluding slippage/fees."""
         distance = abs(entry_price - stop_price)
         if distance <= 0:
             return 0.0
-        ticks = distance / self.tick_size
-        return ticks * self.tick_value
+        return abs(self.cash_pnl_for_price_delta(distance, 1.0))
 
     def raw_lot_for_risk(self, risk_amount: float, entry_price: float, stop_price: float) -> float:
         if risk_amount <= 0:
