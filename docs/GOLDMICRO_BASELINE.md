@@ -4,6 +4,7 @@ This fork is being adapted from generic XAUUSD assumptions to a broker-specific 
 
 ## Confirmed user/broker constraints
 
+- Broker/MT5 server: `XMGlobal-MT5 4`
 - Symbol: `GOLDmicro`
 - Minimum lot: `0.1`
 - Lot step: `0.1`
@@ -11,6 +12,8 @@ This fork is being adapted from generic XAUUSD assumptions to a broker-specific 
 - Observed spread range in that sample: roughly `40-70 points`
 
 The supplied tick sample is suitable for broker-cost profiling, but it is only one trading day and must **not** be treated as sufficient evidence for model optimization or profitability.
+
+The server name is documentation/baseline only. Runtime connection settings must continue to come from environment/configuration (for example `MT5_SERVER`) and credentials must never be committed to the repository.
 
 ## Safety rules for sizing
 
