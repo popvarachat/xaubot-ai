@@ -10,6 +10,8 @@ on:
       - 'src/challenger_batch.py'
       - 'src/shadow_evaluator.py'
       - 'src/goldmicro_candidate_trainer.py'
+      - 'src/goldmicro_causal_hmm.py'
+      - 'src/goldmicro_causal_v2.py'
       - 'src/candidate_screening.py'
       - 'src/mt5_research_connector.py'
       - 'config/goldmicro_model_lifecycle.json'
@@ -38,6 +40,8 @@ on:
       - 'tests/test_model_lifecycle.py'
       - 'tests/test_model_registry_and_shadow.py'
       - 'tests/test_goldmicro_candidate_trainer.py'
+      - 'tests/test_goldmicro_causal_hmm.py'
+      - 'tests/test_goldmicro_causal_v2.py'
       - 'tests/test_candidate_screening.py'
       - 'tests/test_mt5_research_connector.py'
       - '.github/workflows/goldmicro-unit-tests.yml'
@@ -52,6 +56,8 @@ on:
       - 'src/challenger_batch.py'
       - 'src/shadow_evaluator.py'
       - 'src/goldmicro_candidate_trainer.py'
+      - 'src/goldmicro_causal_hmm.py'
+      - 'src/goldmicro_causal_v2.py'
       - 'src/candidate_screening.py'
       - 'src/mt5_research_connector.py'
       - 'config/goldmicro_model_lifecycle.json'
@@ -80,6 +86,8 @@ on:
       - 'tests/test_model_lifecycle.py'
       - 'tests/test_model_registry_and_shadow.py'
       - 'tests/test_goldmicro_candidate_trainer.py'
+      - 'tests/test_goldmicro_causal_hmm.py'
+      - 'tests/test_goldmicro_causal_v2.py'
       - 'tests/test_candidate_screening.py'
       - 'tests/test_mt5_research_connector.py'
       - '.github/workflows/goldmicro-unit-tests.yml'
@@ -128,6 +136,8 @@ jobs:
           src/challenger_batch.py
           src/shadow_evaluator.py
           src/goldmicro_candidate_trainer.py
+          src/goldmicro_causal_hmm.py
+          src/goldmicro_causal_v2.py
           src/candidate_screening.py
           src/mt5_research_connector.py
 
@@ -140,5 +150,7 @@ jobs:
           tests/test_model_lifecycle.py
           tests/test_model_registry_and_shadow.py
           tests/test_goldmicro_candidate_trainer.py
+          tests/test_goldmicro_causal_hmm.py
+          tests/test_goldmicro_causal_v2.py
           tests/test_candidate_screening.py
           tests/test_mt5_research_connector.py
