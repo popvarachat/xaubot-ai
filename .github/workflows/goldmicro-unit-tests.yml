@@ -6,6 +6,9 @@ on:
       - 'src/broker_profile.py'
       - 'src/goldmicro_risk.py'
       - 'src/model_lifecycle.py'
+      - 'src/model_registry.py'
+      - 'src/challenger_batch.py'
+      - 'src/shadow_evaluator.py'
       - 'config/goldmicro_model_lifecycle.json'
       - 'docs/GOLDMICRO_MODEL_LIFECYCLE.md'
       - 'backtests/goldmicro_cost_model.py'
@@ -19,10 +22,12 @@ on:
       - 'scripts/run_goldmicro_cost_surface.py'
       - 'scripts/run_goldmicro_full_batch.py'
       - 'scripts/run_goldmicro_model_review_batch.py'
+      - 'scripts/run_goldmicro_lifecycle_batch.py'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
       - 'tests/test_model_lifecycle.py'
+      - 'tests/test_model_registry_and_shadow.py'
       - '.github/workflows/goldmicro-unit-tests.yml'
   push:
     branches:
@@ -31,6 +36,9 @@ on:
       - 'src/broker_profile.py'
       - 'src/goldmicro_risk.py'
       - 'src/model_lifecycle.py'
+      - 'src/model_registry.py'
+      - 'src/challenger_batch.py'
+      - 'src/shadow_evaluator.py'
       - 'config/goldmicro_model_lifecycle.json'
       - 'docs/GOLDMICRO_MODEL_LIFECYCLE.md'
       - 'backtests/goldmicro_cost_model.py'
@@ -44,10 +52,12 @@ on:
       - 'scripts/run_goldmicro_cost_surface.py'
       - 'scripts/run_goldmicro_full_batch.py'
       - 'scripts/run_goldmicro_model_review_batch.py'
+      - 'scripts/run_goldmicro_lifecycle_batch.py'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
       - 'tests/test_model_lifecycle.py'
+      - 'tests/test_model_registry_and_shadow.py'
       - '.github/workflows/goldmicro-unit-tests.yml'
 
 permissions:
@@ -72,7 +82,7 @@ jobs:
           pytest python-dotenv polars numpy loguru pandas openpyxl
           xgboost scikit-learn hmmlearn joblib
 
-      - name: Syntax-check baseline runners
+      - name: Syntax-check GOLDmicro runners and lifecycle modules
         run: >-
           python -m py_compile
           scripts/run_goldmicro_baseline.py
@@ -84,7 +94,11 @@ jobs:
           scripts/run_goldmicro_cost_surface.py
           scripts/run_goldmicro_full_batch.py
           scripts/run_goldmicro_model_review_batch.py
+          scripts/run_goldmicro_lifecycle_batch.py
           src/model_lifecycle.py
+          src/model_registry.py
+          src/challenger_batch.py
+          src/shadow_evaluator.py
 
       - name: Run isolated GOLDmicro tests
         run: >-
@@ -93,3 +107,4 @@ jobs:
           tests/test_goldmicro_risk_and_costs.py
           tests/test_goldmicro_replay.py
           tests/test_model_lifecycle.py
+          tests/test_model_registry_and_shadow.py
