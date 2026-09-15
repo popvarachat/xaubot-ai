@@ -1,13 +1,18 @@
 """Run GOLDmicro PF/DD/cost strategy OOS validation for a whole shortlist.
 
 Consumes ``strategy_oos_queue.json`` from the 24 x N multi-sample pre-screen.
-Every shortlisted configuration is evaluated across all retained chronological
-samples in one command.  No orders are sent and no model is promoted.
+Every shortlisted predictive configuration is evaluated across all retained
+chronological samples under BOTH normal and conservative execution-cost profiles
+in one command.  A configuration reaches the shadow queue only when both cost
+profiles pass their multi-sample gates.
+
+No orders are sent and no model is promoted.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -22,6 +27,26 @@ from src.goldmicro_strategy_oos import (
     evaluate_strategy_sample,
     summarize_configuration,
 )
+
+COST_PROFILES = ("normal", "conservative")
+
+
+def _sample_for_cost(sample: dict, cost_profile: str) -> dict:
+    """Reuse one trained model artifact under a different execution-cost scenario."""
+    if cost_profile not in COST_PROFILES:
+        raise ValueError(f"unknown cost profile: {cost_profile}")
+    row = dict(sample)
+    model_id = str(row.get("model_id", "unknown"))
+    replaced = re.sub(
+        r"-(normal|conservative)-s(\d+)$",
+        rf"-{cost_profile}-s\2",
+        model_id,
+    )
+    if replaced == model_id and not model_id.endswith(f"-{cost_profile}"):
+        raise ValueError(f"cannot rewrite cost profile in model id: {model_id}")
+    row["model_id"] = replaced
+    row["evaluation_cost_profile"] = cost_profile
+    return row
 
 
 def _failed_sample(sample: dict, error: Exception) -> SampleStrategyResult:
@@ -44,17 +69,46 @@ def _failed_sample(sample: dict, error: Exception) -> SampleStrategyResult:
     )
 
 
+def _robust_summary(base_id: str, by_cost: dict[str, dict]) -> dict:
+    reasons = []
+    for cost in COST_PROFILES:
+        summary = by_cost[cost]
+        if summary["status"] != "STRATEGY_OOS_PASS":
+            reasons.append(f"{cost} cost profile failed multi-sample strategy gate")
+    return {
+        "base_model_id": base_id,
+        "status": "STRATEGY_OOS_ROBUST_PASS" if not reasons else "STRATEGY_OOS_ROBUST_REJECT",
+        "cost_profiles": by_cost,
+        "robust_min_sample_pass_rate": min(
+            by_cost[c]["sample_pass_rate"] for c in COST_PROFILES
+        ),
+        "robust_min_median_pf": min(by_cost[c]["median_pf"] for c in COST_PROFILES),
+        "robust_worst_dd_percent": max(
+            by_cost[c]["worst_dd_percent"] for c in COST_PROFILES
+        ),
+        "robust_min_median_expectancy_thb": min(
+            by_cost[c]["median_expectancy_thb"] for c in COST_PROFILES
+        ),
+        "reasons": reasons if reasons else [
+            "normal and conservative GOLDmicro cost profiles both passed"
+        ],
+    }
+
+
 def run_queue(queue_path: Path, *, thresholds: StrategyOOSThresholds) -> Path:
     queue = json.loads(queue_path.read_text(encoding="utf-8"))
     configs = queue.get("configurations") or []
     if not configs:
         raise ValueError(f"no shortlisted configurations in {queue_path}")
 
-    total_samples = sum(len(c.get("samples") or []) for c in configs)
-    print("=== GOLDmicro Strategy OOS / PF-DD-Cost Gate ===")
+    chronological_samples = sum(len(c.get("samples") or []) for c in configs)
+    total_jobs = chronological_samples * len(COST_PROFILES)
+    print("=== GOLDmicro Strategy OOS / PF-DD-Cost Robustness Gate ===")
     print(f"Queue          : {queue_path}")
     print(f"Configurations : {len(configs)}")
-    print(f"Sample jobs    : {total_samples}")
+    print(f"Chron samples  : {chronological_samples}")
+    print(f"Cost profiles  : {', '.join(COST_PROFILES)}")
+    print(f"OOS jobs       : {chronological_samples} x {len(COST_PROFILES)} = {total_jobs}")
     print(f"Capital        : {thresholds.initial_capital_thb:,.0f} THB")
     print(f"Risk cap       : {thresholds.risk_per_trade_percent:.2f}%")
     print(f"PF gate        : >= {thresholds.min_profit_factor:.2f}")
@@ -65,31 +119,50 @@ def run_queue(queue_path: Path, *, thresholds: StrategyOOSThresholds) -> Path:
     job = 0
     for config in configs:
         base_id = str(config.get("base_model_id"))
-        sample_results = []
-        for sample in config.get("samples") or []:
-            job += 1
-            print(f"[{job:02d}/{total_samples:02d}] {sample.get('model_id')}")
-            try:
-                result = evaluate_strategy_sample(sample, thresholds=thresholds)
-            except Exception as exc:
-                result = _failed_sample(sample, exc)
-            sample_results.append(result)
-            print(
-                f"  {result.status} | trades={result.trades} | PF={result.profit_factor:.3f} | "
-                f"DD={result.max_drawdown_percent:.2f}% | exp={result.expectancy_thb:.2f} THB | "
-                f"risk-skip={result.risk_skip_percent:.1f}%"
+        by_cost: dict[str, dict] = {}
+        for cost_profile in COST_PROFILES:
+            sample_results = []
+            for raw_sample in config.get("samples") or []:
+                job += 1
+                try:
+                    sample = _sample_for_cost(raw_sample, cost_profile)
+                except Exception as exc:
+                    sample = dict(raw_sample)
+                    result = _failed_sample(sample, exc)
+                    sample_results.append(result)
+                    print(f"[{job:03d}/{total_jobs:03d}] {raw_sample.get('model_id')} | cost={cost_profile}")
+                    print(f"  {result.status} | {result.reasons[0]}")
+                    continue
+
+                print(
+                    f"[{job:03d}/{total_jobs:03d}] {raw_sample.get('model_id')} | "
+                    f"cost={cost_profile}"
+                )
+                try:
+                    result = evaluate_strategy_sample(sample, thresholds=thresholds)
+                except Exception as exc:
+                    result = _failed_sample(sample, exc)
+                sample_results.append(result)
+                print(
+                    f"  {result.status} | trades={result.trades} | PF={result.profit_factor:.3f} | "
+                    f"DD={result.max_drawdown_percent:.2f}% | exp={result.expectancy_thb:.2f} THB | "
+                    f"risk-skip={result.risk_skip_percent:.1f}%"
+                )
+
+            by_cost[cost_profile] = summarize_configuration(
+                f"{base_id}::{cost_profile}",
+                sample_results,
+                thresholds=thresholds,
             )
-        summaries.append(
-            summarize_configuration(base_id, sample_results, thresholds=thresholds)
-        )
+        summaries.append(_robust_summary(base_id, by_cost))
 
     summaries.sort(
         key=lambda x: (
-            x["status"] == "STRATEGY_OOS_PASS",
-            x["sample_pass_rate"],
-            x["median_pf"],
-            x["median_expectancy_thb"],
-            -x["worst_dd_percent"],
+            x["status"] == "STRATEGY_OOS_ROBUST_PASS",
+            x["robust_min_sample_pass_rate"],
+            x["robust_min_median_pf"],
+            x["robust_min_median_expectancy_thb"],
+            -x["robust_worst_dd_percent"],
         ),
         reverse=True,
     )
@@ -97,17 +170,20 @@ def run_queue(queue_path: Path, *, thresholds: StrategyOOSThresholds) -> Path:
     report_dir = queue_path.parent
     report_path = report_dir / "strategy_oos_report.json"
     shadow_path = report_dir / "shadow_queue.json"
+    robust_pass = [x for x in summaries if x["status"] == "STRATEGY_OOS_ROBUST_PASS"]
     report = {
         "generated_at": datetime.now().isoformat(),
         "batch_id": queue.get("batch_id"),
         "state": "STRATEGY_OOS_COMPLETE",
         "thresholds": thresholds.__dict__,
+        "cost_profiles": list(COST_PROFILES),
         "configurations": summaries,
-        "pass_count": sum(1 for x in summaries if x["status"] == "STRATEGY_OOS_PASS"),
+        "robust_pass_count": len(robust_pass),
         "promotion_performed": False,
         "warning": (
             "This is a research strategy proxy using causal candidate artifacts and broker-correct "
-            "costs. Walk-forward/perturbation/shadow evidence and Human Gate remain mandatory."
+            "normal/conservative costs. Chronological probes may overlap; independent forward shadow "
+            "evidence, perturbation review and Human Gate remain mandatory."
         ),
     }
     report_path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
@@ -115,19 +191,21 @@ def run_queue(queue_path: Path, *, thresholds: StrategyOOSThresholds) -> Path:
     shadow = {
         "batch_id": queue.get("batch_id"),
         "state": "AWAITING_SHADOW_AND_INDEPENDENT_AUDIT",
-        "configurations": [x for x in summaries if x["status"] == "STRATEGY_OOS_PASS"],
+        "configurations": robust_pass,
         "promotion_performed": False,
     }
     shadow_path.write_text(json.dumps(shadow, indent=2, default=str), encoding="utf-8")
 
-    print("\n=== Strategy OOS Summary ===")
+    print("\n=== Strategy OOS Robustness Summary ===")
     for item in summaries:
         print(
-            f"{item['status']:20s} pass={item['sample_pass_count']}/{item['sample_count']} "
-            f"medianPF={item['median_pf']:.3f} worstDD={item['worst_dd_percent']:.2f}% "
+            f"{item['status']:28s} minPass={item['robust_min_sample_pass_rate']:.0%} "
+            f"minMedianPF={item['robust_min_median_pf']:.3f} "
+            f"worstDD={item['robust_worst_dd_percent']:.2f}% "
             f"{item['base_model_id']}"
         )
-    print(f"\nReport         : {report_path}")
+    print(f"\nRobust pass    : {len(robust_pass)}/{len(summaries)} configurations")
+    print(f"Report         : {report_path}")
     print(f"Shadow queue   : {shadow_path}")
     print("Live model     : UNCHANGED")
     print("Promotion      : DISABLED")
