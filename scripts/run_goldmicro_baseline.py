@@ -16,10 +16,15 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import pandas as pd
 
@@ -162,7 +167,7 @@ def main() -> int:
     parser.add_argument("--slippage", type=float, default=0.0, help="Adverse slippage points per side")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = REPO_ROOT
     workbook = (args.input if args.input else _latest_default_workbook(repo_root)).resolve()
     if not workbook.exists():
         raise SystemExit(f"Input workbook not found: {workbook}")
