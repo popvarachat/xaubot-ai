@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from backtests.goldmicro_cost_model import BacktestCostConfig
+from scripts.run_goldmicro_strategy_oos import _sample_for_cost
 from src.goldmicro_strategy_oos import (
     SampleStrategyResult,
     StrategyOOSThresholds,
@@ -88,3 +89,15 @@ def test_configuration_requires_four_of_five_and_no_hard_dd_breach() -> None:
 def test_cost_profile_inference_from_sample_model_id() -> None:
     assert infer_cost_profile("gold-x-core-normal-s01") == "normal"
     assert infer_cost_profile("gold-x-core-conservative-s05") == "conservative"
+
+
+def test_cross_cost_rewrite_handles_same_and_alternate_profiles() -> None:
+    sample = {
+        "model_id": "gold-batch-ch-001-b20000-s47-responsive-h500-c60-core-normal-s01",
+        "xgb_path": "models/candidates/example/xgboost_model.pkl",
+    }
+    normal = _sample_for_cost(sample, "normal")
+    conservative = _sample_for_cost(sample, "conservative")
+    assert normal["model_id"].endswith("-normal-s01")
+    assert conservative["model_id"].endswith("-conservative-s01")
+    assert normal["xgb_path"] == conservative["xgb_path"]
