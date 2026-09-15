@@ -10,8 +10,15 @@ execution behavior.
 """
 from __future__ import annotations
 
-import src.goldmicro_candidate_trainer as candidate_trainer
-from src.goldmicro_causal_smc import GoldmicroCausalSMCAnalyzer
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import src.goldmicro_candidate_trainer as candidate_trainer  # noqa: E402
+from src.goldmicro_causal_smc import GoldmicroCausalSMCAnalyzer  # noqa: E402
 
 # train_candidate() resolves SMCAnalyzer from its module globals at call time.
 # Patch the research module only inside this Python process.
