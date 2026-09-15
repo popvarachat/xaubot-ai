@@ -10,9 +10,10 @@ on:
       - 'scripts/run_goldmicro_baseline.py'
       - 'scripts/run_goldmicro_baseline_isolated.py'
       - 'scripts/run_goldmicro_capital_sweep_isolated.py'
-      - 'scripts/run_goldmicro_model_matrix.py'
       - 'scripts/analyze_goldmicro_spread_profile.py'
       - 'scripts/dump_goldmicro_transaction_costs.py'
+      - 'scripts/run_goldmicro_model_matrix.py'
+      - 'scripts/run_goldmicro_cost_surface.py'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
@@ -28,9 +29,10 @@ on:
       - 'scripts/run_goldmicro_baseline.py'
       - 'scripts/run_goldmicro_baseline_isolated.py'
       - 'scripts/run_goldmicro_capital_sweep_isolated.py'
-      - 'scripts/run_goldmicro_model_matrix.py'
       - 'scripts/analyze_goldmicro_spread_profile.py'
       - 'scripts/dump_goldmicro_transaction_costs.py'
+      - 'scripts/run_goldmicro_model_matrix.py'
+      - 'scripts/run_goldmicro_cost_surface.py'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
@@ -64,9 +66,10 @@ jobs:
           scripts/run_goldmicro_baseline.py
           scripts/run_goldmicro_baseline_isolated.py
           scripts/run_goldmicro_capital_sweep_isolated.py
-          scripts/run_goldmicro_model_matrix.py
           scripts/analyze_goldmicro_spread_profile.py
           scripts/dump_goldmicro_transaction_costs.py
+          scripts/run_goldmicro_model_matrix.py
+          scripts/run_goldmicro_cost_surface.py
 
       - name: Run isolated GOLDmicro tests
         run: >-
