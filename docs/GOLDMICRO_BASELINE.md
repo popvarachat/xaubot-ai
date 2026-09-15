@@ -120,7 +120,7 @@ The branch now contains an isolated GOLDmicro foundation plus a post-trade repla
 - `backtests/goldmicro_cost_model.py`: Bid/Ask-aware execution-cost accounting using calibrated account-currency cash P/L when provided.
 - `backtests/goldmicro_replay.py`: replays legacy trade records with sequential equity, broker-valid lot sizing, spread/slippage/fees, PF, expectancy, Sharpe, and maximum drawdown.
 - `scripts/run_goldmicro_baseline.py`: read-only one-click XLSX replay using live MT5 account-currency calibration and 55/70/100 spread stress scenarios.
-- `.github/workflows/goldmicro-unit-tests.yml`: isolated CI for the new GOLDmicro components.
+- `.github/workflows/goldmicro-unit-tests.yml`: isolated CI for the new GOLDmicro components and syntax-check of the baseline runner.
 - `scripts/dump_goldmicro_spec.py`: read-only runtime symbol-spec and account-currency calibration capture without printing credentials or placing orders.
 
 The replay stage intentionally preserves the legacy signal/entry/exit timing. It is therefore a safer first baseline for measuring the impact of broker sizing and transaction costs, but it is **not yet a full tick-accurate backtest**. In particular, TP/SL/exit trigger timing still originates from the legacy one-price OHLC path.
