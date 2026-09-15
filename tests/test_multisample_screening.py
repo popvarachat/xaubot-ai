@@ -1,3 +1,6 @@
+import ast
+from pathlib import Path
+
 from src.candidate_screening import ScreeningThresholds
 from src.multisample_screening import summarize_multisample, select_stable_shortlist
 from src.target_alignment import select_target_shortlist, summarize_target_alignment
@@ -101,3 +104,9 @@ def test_target_alignment_keeps_auc_gate_and_separates_horizons():
         top_k=6,
     )
     assert [x.base_model_id for x in shortlist] == [base4]
+
+
+def test_target_alignment_runner_is_syntax_valid():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "scripts" / "run_goldmicro_target_alignment_study.py").read_text(encoding="utf-8")
+    ast.parse(source)
