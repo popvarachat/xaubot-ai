@@ -23,9 +23,18 @@ The server name is documentation/baseline only. Runtime connection settings must
 4. Risk calculations should use `trade_tick_size` and `trade_tick_value_loss`/`trade_tick_value`.
 5. Backtests must charge bid/ask spread explicitly and should add slippage, commission, and swap where applicable.
 
+## Implemented on this branch
+
+- `src/broker_profile.py`: broker symbol specification abstraction.
+- `src/goldmicro_risk.py`: conservative GOLDmicro risk sizing using broker tick value/tick size, half-Kelly as a reducer, broker minimum rejection, and downward volume normalization.
+- `backtests/goldmicro_cost_model.py`: explicit BUY Ask→Bid and SELL Bid→Ask accounting, 55-point configurable spread baseline, optional slippage/commission/swap, and direct observed Bid/Ask mode.
+- Tests cover 0.1 minimum/step behavior, risk-budget rejection, synthetic 55-point spread, and observed Bid/Ask accounting.
+
+These components are intentionally isolated from the legacy live execution path until validation is complete.
+
 ## Validation plan before optimization
 
-- Replace fixed XAUUSD pip-value assumptions in risk and backtest code paths.
+- Replace fixed XAUUSD pip-value assumptions in the legacy `RiskEngine` and backtest code paths with the broker-profile components above.
 - Use correct BUY Ask entry / Bid exit and SELL Bid entry / Ask exit accounting.
 - Recalculate PF, maximum drawdown, expectancy, Sharpe, and equity after realistic costs.
 - Verify no look-ahead/data leakage in feature generation and model evaluation.
@@ -34,4 +43,4 @@ The server name is documentation/baseline only. Runtime connection settings must
 
 ## Scope of this branch
 
-`feat/goldmicro-broker-profile-v1` adds a reusable broker-profile abstraction and tests. It does **not** enable live trading or change production execution behavior yet.
+`feat/goldmicro-broker-profile-v1` adds reusable broker/risk/cost abstractions and tests. It does **not** enable live trading or change production execution behavior yet.
