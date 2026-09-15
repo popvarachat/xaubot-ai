@@ -8,11 +8,11 @@ def _profile() -> BrokerSymbolProfile:
         symbol="GOLDmicro",
         point=0.01,
         tick_size=0.01,
-        tick_value=0.10,
-        contract_size=10.0,
+        tick_value=0.01,
+        contract_size=1.0,
         volume_min=0.1,
         volume_max=100.0,
-        volume_step=0.1,
+        volume_step=0.01,
     )
 
 
@@ -20,7 +20,7 @@ def test_half_kelly_cannot_be_negative():
     assert half_kelly_fraction(0.30, 1.0) == 0.0
 
 
-def test_sizing_floors_to_point_one_step_without_increasing_risk():
+def test_sizing_floors_to_point_zero_one_step_without_increasing_risk():
     profile = _profile()
     result = size_goldmicro_position(
         profile=profile,
@@ -33,7 +33,7 @@ def test_sizing_floors_to_point_one_step_without_increasing_risk():
     )
     assert result.approved is True
     assert result.lot_size >= 0.1
-    assert round(result.lot_size * 10) == result.lot_size * 10
+    assert round(result.lot_size * 100) == result.lot_size * 100
     assert result.actual_risk_amount <= result.requested_risk_amount + 1e-9
 
 
@@ -62,7 +62,6 @@ def test_mid_price_buy_is_charged_55_point_spread_round_trip():
         exit_mid=4300.00,
         lot_size=0.1,
     )
-    # Flat mid-price must lose exactly the synthetic spread.
     expected = -(55 * profile.point / profile.tick_size) * profile.tick_value * 0.1
     assert abs(result.net_pnl - expected) < 1e-9
 
