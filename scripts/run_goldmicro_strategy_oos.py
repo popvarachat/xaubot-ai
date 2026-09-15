@@ -3,8 +3,12 @@
 Consumes ``strategy_oos_queue.json`` from the 24 x N multi-sample pre-screen.
 Every shortlisted predictive configuration is evaluated across all retained
 chronological samples under BOTH normal and conservative execution-cost profiles
-in one command.  A configuration reaches the shadow queue only when both cost
+in one command. A configuration reaches the shadow queue only when both cost
 profiles pass their multi-sample gates.
+
+An empty shortlist is a valid research outcome, not an execution failure. In
+that case this runner writes explicit NO_ELIGIBLE_CONFIGURATIONS evidence and
+returns success without fabricating PF/DD results or weakening the AUC gate.
 
 No orders are sent and no model is promoted.
 """
@@ -91,11 +95,60 @@ def _robust_summary(base_id: str, by_cost: dict[str, dict]) -> dict:
     }
 
 
+def _write_no_eligible_outputs(
+    queue_path: Path,
+    queue: dict,
+    thresholds: StrategyOOSThresholds,
+) -> Path:
+    """Persist an explicit terminal result when the AUC pre-screen yields zero models."""
+    report_dir = queue_path.parent
+    report_path = report_dir / "strategy_oos_report.json"
+    shadow_path = report_dir / "shadow_queue.json"
+    reason = (
+        "No configuration passed the upstream multi-sample AUC/generalization pre-screen. "
+        "Strategy PF/DD/cost evaluation was intentionally not run. Do not lower the predictive "
+        "gate merely to manufacture a shortlist; redesign or re-align the predictive target/features first."
+    )
+    report = {
+        "generated_at": datetime.now().isoformat(),
+        "batch_id": queue.get("batch_id"),
+        "state": "NO_ELIGIBLE_CONFIGURATIONS",
+        "thresholds": thresholds.__dict__,
+        "cost_profiles": list(COST_PROFILES),
+        "configurations": [],
+        "robust_pass_count": 0,
+        "strategy_oos_executed": False,
+        "promotion_performed": False,
+        "reason": reason,
+    }
+    report_path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+    shadow = {
+        "batch_id": queue.get("batch_id"),
+        "state": "NO_ELIGIBLE_CONFIGURATIONS",
+        "configurations": [],
+        "promotion_performed": False,
+        "reason": reason,
+    }
+    shadow_path.write_text(json.dumps(shadow, indent=2, default=str), encoding="utf-8")
+
+    print("=== GOLDmicro Strategy OOS / PF-DD-Cost Robustness Gate ===")
+    print(f"Queue          : {queue_path}")
+    print("Configurations : 0")
+    print("OOS jobs       : 0")
+    print("State          : NO_ELIGIBLE_CONFIGURATIONS")
+    print("Action         : PF/DD/cost gate skipped; predictive research must be redesigned first")
+    print(f"Report         : {report_path}")
+    print(f"Shadow queue   : {shadow_path}")
+    print("Live model     : UNCHANGED")
+    print("Promotion      : DISABLED")
+    return report_path
+
+
 def run_queue(queue_path: Path, *, thresholds: StrategyOOSThresholds) -> Path:
     queue = json.loads(queue_path.read_text(encoding="utf-8"))
     configs = queue.get("configurations") or []
     if not configs:
-        raise ValueError(f"no shortlisted configurations in {queue_path}")
+        return _write_no_eligible_outputs(queue_path, queue, thresholds)
 
     chronological_samples = sum(len(c.get("samples") or []) for c in configs)
     total_jobs = chronological_samples * len(COST_PROFILES)
@@ -175,6 +228,7 @@ def run_queue(queue_path: Path, *, thresholds: StrategyOOSThresholds) -> Path:
         "cost_profiles": list(COST_PROFILES),
         "configurations": summaries,
         "robust_pass_count": len(robust_pass),
+        "strategy_oos_executed": True,
         "promotion_performed": False,
         "warning": (
             "This is a research strategy proxy using causal candidate artifacts and broker-correct "
