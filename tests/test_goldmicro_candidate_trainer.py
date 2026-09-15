@@ -1,10 +1,13 @@
 import polars as pl
+import pytest
 
 from src.goldmicro_candidate_trainer import (
+    OOS_GAP_BARS,
     feature_columns_for_profile,
     impute_v2_feature_nulls,
     xgb_params_for_profile,
 )
+from src.goldmicro_target_trainer import train_target_aligned_candidate
 
 
 def test_xgb_profiles_have_distinct_complexity_and_seed():
@@ -74,3 +77,18 @@ def test_v2_imputation_preserves_semantic_sentinels_without_touching_raw_sparse_
     assert out["fvg_age_bars"][0] == 999
     assert out["h1_rsi"][0] == 50.0
     assert out["fvg_top"][0] is None
+
+
+def test_target_alignment_horizon_must_fit_inside_oos_gap():
+    with pytest.raises(ValueError):
+        train_target_aligned_candidate(
+            None,
+            target_lookahead_bars=0,
+            connector=None,
+        )
+    with pytest.raises(ValueError):
+        train_target_aligned_candidate(
+            None,
+            target_lookahead_bars=OOS_GAP_BARS,
+            connector=None,
+        )
