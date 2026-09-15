@@ -43,6 +43,11 @@ SAFE_FIELDS = (
 )
 
 
+def _profit_check(action: int, volume: float, open_price: float, close_price: float):
+    value = mt5.order_calc_profit(action, SYMBOL, volume, open_price, close_price)
+    return None if value is None else float(value)
+
+
 def main() -> int:
     if not mt5.initialize():
         print(f"MT5 initialize failed: {mt5.last_error()}", file=sys.stderr)
@@ -69,6 +74,7 @@ def main() -> int:
             "symbol": SYMBOL,
             "spec": {field: getattr(info, field, None) for field in SAFE_FIELDS},
             "current_tick": None,
+            "order_calc_profit_check": None,
         }
         if tick is not None:
             payload["current_tick"] = {
@@ -78,6 +84,25 @@ def main() -> int:
                 "time_msc": tick.time_msc,
                 "spread_price": tick.ask - tick.bid,
                 "spread_points": (tick.ask - tick.bid) / info.point if info.point else None,
+            }
+
+            # Independent MT5 P/L cross-checks. These are calculations only;
+            # they do not submit any trade request.
+            plus_one = round(tick.ask + 1.0, info.digits)
+            minus_one = round(tick.bid - 1.0, info.digits)
+            payload["order_calc_profit_check"] = {
+                "buy_0_10_lot_plus_1_price": _profit_check(
+                    mt5.ORDER_TYPE_BUY, 0.10, tick.ask, plus_one
+                ),
+                "buy_1_00_lot_plus_1_price": _profit_check(
+                    mt5.ORDER_TYPE_BUY, 1.00, tick.ask, plus_one
+                ),
+                "sell_0_10_lot_minus_1_price": _profit_check(
+                    mt5.ORDER_TYPE_SELL, 0.10, tick.bid, minus_one
+                ),
+                "sell_1_00_lot_minus_1_price": _profit_check(
+                    mt5.ORDER_TYPE_SELL, 1.00, tick.bid, minus_one
+                ),
             }
 
         print(json.dumps(payload, indent=2, ensure_ascii=False, default=str))
