@@ -59,6 +59,8 @@ def main() -> int:
             print("MT5 terminal_info() unavailable", file=sys.stderr)
             return 1
 
+        account = mt5.account_info()
+
         if not mt5.symbol_select(SYMBOL, True):
             print(f"Unable to select {SYMBOL}: {mt5.last_error()}", file=sys.stderr)
             return 1
@@ -71,6 +73,7 @@ def main() -> int:
 
         payload = {
             "terminal_connected": bool(getattr(terminal, "connected", False)),
+            "account_currency": getattr(account, "currency", None) if account is not None else None,
             "symbol": SYMBOL,
             "spec": {field: getattr(info, field, None) for field in SAFE_FIELDS},
             "current_tick": None,
@@ -86,11 +89,13 @@ def main() -> int:
                 "spread_points": (tick.ask - tick.bid) / info.point if info.point else None,
             }
 
-            # Independent MT5 P/L cross-checks. These are calculations only;
-            # they do not submit any trade request.
+            # Independent MT5 P/L cross-checks. Values are returned by MT5 in
+            # the trading account currency reported above. These are calculations
+            # only and do not submit any trade request.
             plus_one = round(tick.ask + 1.0, info.digits)
             minus_one = round(tick.bid - 1.0, info.digits)
             payload["order_calc_profit_check"] = {
+                "currency": payload["account_currency"],
                 "buy_0_10_lot_plus_1_price": _profit_check(
                     mt5.ORDER_TYPE_BUY, 0.10, tick.ask, plus_one
                 ),
