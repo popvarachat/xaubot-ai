@@ -8,6 +8,7 @@ on:
       - 'backtests/goldmicro_cost_model.py'
       - 'backtests/goldmicro_replay.py'
       - 'scripts/run_goldmicro_baseline.py'
+      - 'scripts/run_goldmicro_baseline_isolated.py'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
@@ -21,6 +22,7 @@ on:
       - 'backtests/goldmicro_cost_model.py'
       - 'backtests/goldmicro_replay.py'
       - 'scripts/run_goldmicro_baseline.py'
+      - 'scripts/run_goldmicro_baseline_isolated.py'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
@@ -48,8 +50,11 @@ jobs:
           pytest python-dotenv polars numpy loguru pandas openpyxl
           xgboost scikit-learn hmmlearn joblib
 
-      - name: Syntax-check baseline runner
-        run: python -m py_compile scripts/run_goldmicro_baseline.py
+      - name: Syntax-check baseline runners
+        run: >-
+          python -m py_compile
+          scripts/run_goldmicro_baseline.py
+          scripts/run_goldmicro_baseline_isolated.py
 
       - name: Run isolated GOLDmicro tests
         run: >-
