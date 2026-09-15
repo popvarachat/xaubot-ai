@@ -6,6 +6,7 @@ Training engines can consume these specs without ever writing to active Champion
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
+from hashlib import sha256
 from itertools import product
 from pathlib import Path
 from typing import Iterable
@@ -45,6 +46,23 @@ def _safe_batch_id(batch_id: str | None) -> str:
     return cleaned
 
 
+def _diverse_combinations(values: list[tuple], limit: int | None) -> list[tuple]:
+    """Deterministically spread a bounded batch across the full Cartesian grid.
+
+    Taking the first N values from itertools.product badly biases small batches
+    toward the earliest train-window/seed/profile values. Hash ordering gives a
+    reproducible pseudo-random sample that covers the full design space without
+    relying on process-global RNG state.
+    """
+    if limit is None or limit >= len(values):
+        return values
+    ranked = sorted(
+        values,
+        key=lambda vals: sha256(repr(vals).encode("utf-8")).hexdigest(),
+    )
+    return ranked[:limit]
+
+
 def build_challenger_specs(
     *,
     train_bars: Iterable[int] = (10000, 15000, 20000),
@@ -58,24 +76,21 @@ def build_challenger_specs(
     limit: int | None = 96,
     batch_id: str | None = None,
 ) -> list[ChallengerSpec]:
-    """Create many deterministic challenger specs in one batch.
-
-    The full Cartesian grid can be very large, so default limit keeps one batch
-    bounded while still exploring many independent variants. A batch_id makes
-    weekly/repeated research immutable instead of overwriting an earlier model.
-    """
+    """Create many deterministic, diverse challenger specs in one batch."""
     safe_batch = _safe_batch_id(batch_id)
+    full_grid = list(product(
+        tuple(train_bars),
+        tuple(seeds),
+        tuple(xgb_profiles),
+        tuple(hmm_lookbacks),
+        tuple(confidence_thresholds),
+        tuple(feature_profiles),
+        tuple(cost_profiles),
+    ))
+    chosen = _diverse_combinations(full_grid, limit)
+
     specs: list[ChallengerSpec] = []
-    idx = 1
-    for vals in product(
-        train_bars,
-        seeds,
-        xgb_profiles,
-        hmm_lookbacks,
-        confidence_thresholds,
-        feature_profiles,
-        cost_profiles,
-    ):
+    for idx, vals in enumerate(chosen, start=1):
         bars, seed, xgb, hmm, conf, feat, cost = vals
         suffix = f"ch-{idx:03d}-b{bars}-s{seed}-{xgb}-h{hmm}-c{int(round(conf*100))}-{feat}-{cost}"
         model_id = f"gold-{safe_batch}-{suffix}" if safe_batch else f"gold-{suffix}"
@@ -94,9 +109,6 @@ def build_challenger_specs(
                 batch_id=safe_batch,
             )
         )
-        idx += 1
-        if limit is not None and len(specs) >= limit:
-            break
     return specs
 
 
