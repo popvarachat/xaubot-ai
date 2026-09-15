@@ -23,24 +23,27 @@ The server name is documentation/baseline only. Runtime connection settings must
 4. Risk calculations should use `trade_tick_size` and `trade_tick_value_loss`/`trade_tick_value`.
 5. Backtests must charge bid/ask spread explicitly and should add slippage, commission, and swap where applicable.
 
-## Implemented on this branch
-
-- `src/broker_profile.py`: broker symbol specification abstraction.
-- `src/goldmicro_risk.py`: conservative GOLDmicro risk sizing using broker tick value/tick size, half-Kelly as a reducer, broker minimum rejection, and downward volume normalization.
-- `backtests/goldmicro_cost_model.py`: explicit BUY Ask→Bid and SELL Bid→Ask accounting, 55-point configurable spread baseline, optional slippage/commission/swap, and direct observed Bid/Ask mode.
-- Tests cover 0.1 minimum/step behavior, risk-budget rejection, synthetic 55-point spread, and observed Bid/Ask accounting.
-
-These components are intentionally isolated from the legacy live execution path until validation is complete.
-
 ## Validation plan before optimization
 
-- Replace fixed XAUUSD pip-value assumptions in the legacy `RiskEngine` and backtest code paths with the broker-profile components above.
+- Replace fixed XAUUSD pip-value assumptions in risk and backtest code paths.
 - Use correct BUY Ask entry / Bid exit and SELL Bid entry / Ask exit accounting.
 - Recalculate PF, maximum drawdown, expectancy, Sharpe, and equity after realistic costs.
 - Verify no look-ahead/data leakage in feature generation and model evaluation.
 - Add walk-forward/out-of-sample validation before parameter optimization is considered trustworthy.
 - Stress-test spread above the observed baseline, including 70 and 100+ point scenarios.
 
+## Current implementation stage
+
+The branch now contains an isolated GOLDmicro foundation plus a post-trade replay layer:
+
+- `src/broker_profile.py`: broker symbol specification abstraction.
+- `src/goldmicro_risk.py`: conservative risk-based GOLDmicro sizing.
+- `backtests/goldmicro_cost_model.py`: Bid/Ask-aware execution-cost accounting.
+- `backtests/goldmicro_replay.py`: replays legacy trade records with sequential equity, broker-valid lot sizing, spread/slippage/fees, PF, expectancy, Sharpe, and maximum drawdown.
+- `.github/workflows/goldmicro-unit-tests.yml`: isolated CI for the new GOLDmicro components.
+
+The replay stage intentionally preserves the legacy signal/entry/exit timing. It is therefore a safer first baseline for measuring the impact of broker sizing and transaction costs, but it is **not yet a full tick-accurate backtest**. In particular, TP/SL/exit trigger timing still originates from the legacy one-price OHLC path.
+
 ## Scope of this branch
 
-`feat/goldmicro-broker-profile-v1` adds reusable broker/risk/cost abstractions and tests. It does **not** enable live trading or change production execution behavior yet.
+`feat/goldmicro-broker-profile-v1` does **not** enable live trading or change production execution behavior. The next stage is to obtain a trustworthy GOLDmicro broker specification (`tick_size`, `tick_value`, `contract_size`, volume limits) from MT5 and run/replay a sufficiently long historical sample before strategy optimization.
