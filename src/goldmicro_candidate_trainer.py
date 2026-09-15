@@ -28,6 +28,34 @@ from src.ml_model import get_default_feature_columns
 TRAIN_RATIO = 0.70
 OOS_GAP_BARS = 50
 
+# Sparse event columns such as fvg_top/ob_top are intentionally NOT fed directly
+# to XGBoost. V2 models use the engineered dense/sentinel features below instead.
+V2_NULL_DEFAULTS: dict[str, float | int] = {
+    "h1_market_structure": 0,
+    "h1_ema20_distance": 0.0,
+    "h1_trend_strength": 0,
+    "h1_swing_proximity": 999.0,
+    "h1_fvg_active": 0,
+    "h1_ob_proximity": 999.0,
+    "h1_atr_ratio": 1.0,
+    "h1_rsi": 50.0,
+    "fvg_gap_size_atr": 0.0,
+    "fvg_age_bars": 999,
+    "ob_width_atr": 0.0,
+    "ob_distance_atr": 999.0,
+    "bos_recency": 999,
+    "confluence_score": 0,
+    "swing_distance_atr": 999.0,
+    "regime_duration_bars": 1,
+    "regime_transition_prob": 1.0,
+    "volatility_zscore": 0.0,
+    "crisis_proximity": 0.0,
+    "wick_ratio": 0.0,
+    "body_ratio": 0.0,
+    "gap_from_prev_close": 0.0,
+    "consecutive_direction": 1,
+}
+
 
 def xgb_params_for_profile(profile: str, seed: int) -> dict[str, Any]:
     base = {
@@ -54,6 +82,7 @@ def xgb_params_for_profile(profile: str, seed: int) -> dict[str, Any]:
 
 
 def _numeric_features(df: pl.DataFrame) -> list[str]:
+    """Diagnostic helper retained for ad-hoc inspection, not model selection."""
     exclude = {
         "time", "open", "high", "low", "close", "volume", "target",
         "tick_volume", "spread", "real_volume", "multi_bar_target",
@@ -63,6 +92,44 @@ def _numeric_features(df: pl.DataFrame) -> list[str]:
         pl.UInt64, pl.UInt32, pl.UInt16, pl.UInt8, pl.Boolean,
     }
     return [c for c in df.columns if c not in exclude and df[c].dtype in numeric]
+
+
+def feature_columns_for_profile(df: pl.DataFrame, profile: str) -> list[str]:
+    """Return an explicit, dense model feature policy for each research profile.
+
+    The previous V2 path selected *every numeric column*. That unintentionally
+    included sparse raw SMC event-price columns (for example fvg_top/ob_top).
+    TradingModelV2 drops any row containing a null across selected features, so
+    the intersection of those sparse columns collapsed some V2 candidates to a
+    single usable sample. V2 now means: canonical core features + the explicit
+    23 engineered V2 features only.
+    """
+    base = [c for c in get_default_feature_columns() if c in df.columns]
+    if profile == "core":
+        return base
+    if profile == "core_plus_v2":
+        v2 = [
+            c for c in MLV2FeatureEngineer().get_v2_feature_columns()
+            if c in df.columns and c not in base
+        ]
+        return base + v2
+    raise ValueError(f"unknown feature profile: {profile}")
+
+
+def impute_v2_feature_nulls(df: pl.DataFrame, feature_cols: list[str]) -> pl.DataFrame:
+    """Fill semantic defaults only for engineered V2 features.
+
+    Core feature warm-up nulls are left untouched and are still removed by the
+    model's normal data cleaning. Missing event/proximity information in V2
+    features receives a neutral or explicit 'far/old' sentinel rather than
+    causing the whole row to be discarded.
+    """
+    exprs = [
+        pl.col(name).fill_null(default).alias(name)
+        for name, default in V2_NULL_DEFAULTS.items()
+        if name in feature_cols and name in df.columns
+    ]
+    return df.with_columns(exprs) if exprs else df
 
 
 def _tail_snapshot(df: pl.DataFrame | None, count: int) -> pl.DataFrame | None:
@@ -108,15 +175,22 @@ def _prepare_candidate_data(
         else:
             df_h1 = None
         df = MLV2FeatureEngineer().add_all_v2_features(df, df_h1)
-        feature_cols = _numeric_features(df)
+        feature_cols = feature_columns_for_profile(df, spec.feature_profile)
+        df = impute_v2_feature_nulls(df, feature_cols)
     elif spec.feature_profile == "core":
-        defaults = get_default_feature_columns()
-        feature_cols = [c for c in defaults if c in df.columns]
+        feature_cols = feature_columns_for_profile(df, spec.feature_profile)
     else:
         raise ValueError(f"unknown feature profile: {spec.feature_profile}")
 
     if not feature_cols:
         raise ValueError("candidate has no usable features")
+
+    usable = len(df.select(feature_cols + ["target"]).drop_nulls())
+    if usable < 500:
+        raise ValueError(
+            f"candidate feature policy leaves only {usable} usable rows "
+            f"({spec.feature_profile}, {len(feature_cols)} features)"
+        )
     return df, feature_cols
 
 
