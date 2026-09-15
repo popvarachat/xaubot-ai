@@ -13,6 +13,8 @@ def _profile() -> BrokerSymbolProfile:
         volume_min=0.1,
         volume_max=100.0,
         volume_step=0.01,
+        cash_per_price_unit_per_lot=33.28,
+        cash_currency="THB",
     )
 
 
@@ -53,7 +55,14 @@ def test_sizing_rejects_when_minimum_lot_exceeds_risk_budget():
     assert "Broker minimum 0.1 lot" in result.reason
 
 
-def test_mid_price_buy_is_charged_55_point_spread_round_trip():
+def test_account_currency_calibration_matches_mt5_order_calc_profit():
+    profile = _profile()
+    assert profile.cash_currency == "THB"
+    assert abs(profile.cash_pnl_for_price_delta(1.0, 1.0) - 33.28) < 1e-9
+    assert abs(profile.cash_pnl_for_price_delta(1.0, 0.1) - 3.328) < 1e-9
+
+
+def test_mid_price_buy_is_charged_55_point_spread_round_trip_in_thb():
     profile = _profile()
     model = GoldmicroCostModel(profile, BacktestCostConfig(spread_points=55))
     result = model.pnl_from_mid(
@@ -62,7 +71,7 @@ def test_mid_price_buy_is_charged_55_point_spread_round_trip():
         exit_mid=4300.00,
         lot_size=0.1,
     )
-    expected = -(55 * profile.point / profile.tick_size) * profile.tick_value * 0.1
+    expected = -(55 * profile.point) * profile.cash_per_price_unit_per_lot * 0.1
     assert abs(result.net_pnl - expected) < 1e-9
 
 
@@ -77,7 +86,7 @@ def test_observed_bid_ask_uses_actual_spread_not_synthetic_spread():
         exit_ask=4300.55,
         lot_size=0.1,
     )
-    expected = -(0.55 / profile.tick_size) * profile.tick_value * 0.1
+    expected = -0.55 * profile.cash_per_price_unit_per_lot * 0.1
     assert abs(result.net_pnl - expected) < 1e-9
 
 
