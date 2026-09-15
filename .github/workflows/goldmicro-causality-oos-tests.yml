@@ -10,6 +10,7 @@ on:
       - 'scripts/run_goldmicro_strategy_oos.py'
       - 'tests/test_goldmicro_causal_smc.py'
       - 'tests/test_goldmicro_strategy_oos.py'
+      - 'docs/handoffs/GOLDMICRO_BATCH_20260916_001333_CAUSALITY_REVIEW.md'
       - '.github/workflows/goldmicro-causality-oos-tests.yml'
   push:
     branches:
@@ -22,6 +23,7 @@ on:
       - 'scripts/run_goldmicro_strategy_oos.py'
       - 'tests/test_goldmicro_causal_smc.py'
       - 'tests/test_goldmicro_strategy_oos.py'
+      - 'docs/handoffs/GOLDMICRO_BATCH_20260916_001333_CAUSALITY_REVIEW.md'
       - '.github/workflows/goldmicro-causality-oos-tests.yml'
 
 permissions:
