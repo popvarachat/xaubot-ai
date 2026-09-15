@@ -3,6 +3,7 @@ name: GOLDmicro Unit Tests
 on:
   pull_request:
     paths:
+      - 'RUN-GOLDMICRO-RESEARCH.bat'
       - 'src/broker_profile.py'
       - 'src/goldmicro_risk.py'
       - 'src/model_lifecycle.py'
@@ -52,6 +53,7 @@ on:
     branches:
       - 'feat/goldmicro-broker-profile-v1'
     paths:
+      - 'RUN-GOLDMICRO-RESEARCH.bat'
       - 'src/broker_profile.py'
       - 'src/goldmicro_risk.py'
       - 'src/model_lifecycle.py'
