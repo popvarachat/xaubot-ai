@@ -14,6 +14,7 @@ on:
       - 'scripts/dump_goldmicro_transaction_costs.py'
       - 'scripts/run_goldmicro_model_matrix.py'
       - 'scripts/run_goldmicro_cost_surface.py'
+      - 'scripts/run_goldmicro_full_batch.py'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
@@ -33,6 +34,7 @@ on:
       - 'scripts/dump_goldmicro_transaction_costs.py'
       - 'scripts/run_goldmicro_model_matrix.py'
       - 'scripts/run_goldmicro_cost_surface.py'
+      - 'scripts/run_goldmicro_full_batch.py'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
@@ -70,6 +72,7 @@ jobs:
           scripts/dump_goldmicro_transaction_costs.py
           scripts/run_goldmicro_model_matrix.py
           scripts/run_goldmicro_cost_surface.py
+          scripts/run_goldmicro_full_batch.py
 
       - name: Run isolated GOLDmicro tests
         run: >-
