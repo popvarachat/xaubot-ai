@@ -15,7 +15,7 @@ from typing import Any
 import json
 import polars as pl
 
-from backtests.ml_v2.ml_v2_feature_eng import MLV2FeatureEngineer
+from src.goldmicro_causal_v2 import GoldmicroCausalV2FeatureEngineer as MLV2FeatureEngineer
 from backtests.ml_v2.ml_v2_model import TradingModelV2, ModelType
 from src.challenger_batch import ChallengerSpec, assert_isolated_output
 from src.feature_eng import FeatureEngineer
