@@ -13,6 +13,7 @@ on:
       - 'src/goldmicro_causal_hmm.py'
       - 'src/goldmicro_causal_v2.py'
       - 'src/candidate_screening.py'
+      - 'src/multisample_screening.py'
       - 'src/mt5_research_connector.py'
       - 'config/goldmicro_model_lifecycle.json'
       - 'docs/GOLDMICRO_MODEL_LIFECYCLE.md'
@@ -30,6 +31,7 @@ on:
       - 'scripts/run_goldmicro_lifecycle_batch.py'
       - 'scripts/train_goldmicro_challenger_batch.py'
       - 'scripts/score_goldmicro_challenger_batch.py'
+      - 'scripts/score_goldmicro_multisample_batch.py'
       - 'scripts/run_goldmicro_challenger_research.py'
       - 'scripts/goldmicro_research_preflight.py'
       - 'scripts/setup_goldmicro_research_env.ps1'
@@ -43,6 +45,7 @@ on:
       - 'tests/test_goldmicro_causal_hmm.py'
       - 'tests/test_goldmicro_causal_v2.py'
       - 'tests/test_candidate_screening.py'
+      - 'tests/test_multisample_screening.py'
       - 'tests/test_mt5_research_connector.py'
       - '.github/workflows/goldmicro-unit-tests.yml'
   push:
@@ -59,6 +62,7 @@ on:
       - 'src/goldmicro_causal_hmm.py'
       - 'src/goldmicro_causal_v2.py'
       - 'src/candidate_screening.py'
+      - 'src/multisample_screening.py'
       - 'src/mt5_research_connector.py'
       - 'config/goldmicro_model_lifecycle.json'
       - 'docs/GOLDMICRO_MODEL_LIFECYCLE.md'
@@ -76,6 +80,7 @@ on:
       - 'scripts/run_goldmicro_lifecycle_batch.py'
       - 'scripts/train_goldmicro_challenger_batch.py'
       - 'scripts/score_goldmicro_challenger_batch.py'
+      - 'scripts/score_goldmicro_multisample_batch.py'
       - 'scripts/run_goldmicro_challenger_research.py'
       - 'scripts/goldmicro_research_preflight.py'
       - 'scripts/setup_goldmicro_research_env.ps1'
@@ -89,6 +94,7 @@ on:
       - 'tests/test_goldmicro_causal_hmm.py'
       - 'tests/test_goldmicro_causal_v2.py'
       - 'tests/test_candidate_screening.py'
+      - 'tests/test_multisample_screening.py'
       - 'tests/test_mt5_research_connector.py'
       - '.github/workflows/goldmicro-unit-tests.yml'
 
@@ -129,6 +135,7 @@ jobs:
           scripts/run_goldmicro_lifecycle_batch.py
           scripts/train_goldmicro_challenger_batch.py
           scripts/score_goldmicro_challenger_batch.py
+          scripts/score_goldmicro_multisample_batch.py
           scripts/run_goldmicro_challenger_research.py
           scripts/goldmicro_research_preflight.py
           src/model_lifecycle.py
@@ -139,6 +146,7 @@ jobs:
           src/goldmicro_causal_hmm.py
           src/goldmicro_causal_v2.py
           src/candidate_screening.py
+          src/multisample_screening.py
           src/mt5_research_connector.py
 
       - name: Run isolated GOLDmicro tests
@@ -153,4 +161,5 @@ jobs:
           tests/test_goldmicro_causal_hmm.py
           tests/test_goldmicro_causal_v2.py
           tests/test_candidate_screening.py
+          tests/test_multisample_screening.py
           tests/test_mt5_research_connector.py
