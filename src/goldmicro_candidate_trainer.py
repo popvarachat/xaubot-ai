@@ -5,7 +5,8 @@ writes models/xgboost_model.pkl, models/hmm_regime.pkl, or models/active/*.
 
 For fair multi-model research a caller may pass frozen M15/H1 snapshots so every
 candidate sees the same market cut. HMM fitting is restricted to the training
-partition before it predicts the full frame, avoiding obvious OOS regime leakage.
+partition and historical regime labels are produced by a forward-only filter, so
+V2 regime-conditioning features never require future OOS observations.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ from typing import Any
 import json
 import polars as pl
 
+from src.goldmicro_causal_hmm import predict_causal_regimes
 from src.goldmicro_causal_v2 import GoldmicroCausalV2FeatureEngineer as MLV2FeatureEngineer
 from backtests.ml_v2.ml_v2_model import TradingModelV2, ModelType
 from src.challenger_batch import ChallengerSpec, assert_isolated_output
@@ -148,7 +150,14 @@ def _prepare_candidate_data(
     *,
     raw_m15: pl.DataFrame | None = None,
     raw_h1: pl.DataFrame | None = None,
-):
+) -> tuple[pl.DataFrame, pl.DataFrame | None]:
+    """Prepare causal base data and optional H1 context, but do not build V2 yet.
+
+    V2 regime-conditioning features must be computed only *after* the candidate
+    HMM has been fit on the training partition and causal historical regime labels
+    have been attached.  Building V2 here would silently replace those features
+    with their neutral defaults because no ``regime`` column exists yet.
+    """
     if raw_m15 is None:
         df = connector.get_market_data(symbol, timeframe, spec.train_bars)
     else:
@@ -162,6 +171,7 @@ def _prepare_candidate_data(
     df = smc.calculate_all(df)
     df = fe.create_target(df, lookahead=1)
 
+    df_h1: pl.DataFrame | None = None
     if spec.feature_profile == "core_plus_v2":
         df_h1 = _tail_snapshot(raw_h1, min(spec.train_bars // 4, 3000))
         if df_h1 is None:
@@ -174,6 +184,20 @@ def _prepare_candidate_data(
             df_h1 = smc.calculate_all(df_h1)
         else:
             df_h1 = None
+    elif spec.feature_profile != "core":
+        raise ValueError(f"unknown feature profile: {spec.feature_profile}")
+
+    return df, df_h1
+
+
+def _build_model_features_after_hmm(
+    df: pl.DataFrame,
+    *,
+    spec: ChallengerSpec,
+    df_h1: pl.DataFrame | None,
+) -> tuple[pl.DataFrame, list[str]]:
+    """Build final feature policy after prefix-causal HMM labels are available."""
+    if spec.feature_profile == "core_plus_v2":
         df = MLV2FeatureEngineer().add_all_v2_features(df, df_h1)
         feature_cols = feature_columns_for_profile(df, spec.feature_profile)
         df = impute_v2_feature_nulls(df, feature_cols)
@@ -184,7 +208,6 @@ def _prepare_candidate_data(
 
     if not feature_cols:
         raise ValueError("candidate has no usable features")
-
     usable = len(df.select(feature_cols + ["target"]).drop_nulls())
     if usable < 500:
         raise ValueError(
@@ -213,7 +236,7 @@ def train_candidate(
     data_dir.mkdir(exist_ok=True)
 
     started = datetime.now()
-    df, feature_cols = _prepare_candidate_data(
+    df, df_h1 = _prepare_candidate_data(
         connector,
         symbol,
         timeframe,
@@ -229,7 +252,9 @@ def train_candidate(
     if oos_start_idx >= len(df) - 100:
         raise ValueError("OOS partition too small after leakage gap")
 
-    # HMM must not learn from the future OOS regime distribution.
+    # Fit only on the training partition.  Historical state labels are generated
+    # with a forward-only filter; full-sequence Viterbi/smoothing is intentionally
+    # not used for candidate features because it can rewrite earlier labels.
     hmm_path = out / "hmm_regime.pkl"
     hmm = MarketRegimeDetector(
         n_regimes=3,
@@ -239,7 +264,11 @@ def train_candidate(
     hmm.fit(df.head(split_idx))
     if not hmm.fitted:
         raise RuntimeError("HMM candidate training failed")
-    df = hmm.predict(df)
+    df = predict_causal_regimes(hmm, df)
+
+    # V2 must be built *after* causal HMM labels exist so regime_duration_bars and
+    # regime_transition_prob represent actual candidate regimes rather than defaults.
+    df, feature_cols = _build_model_features_after_hmm(df, spec=spec, df_h1=df_h1)
 
     xgb_path = out / "xgboost_model.pkl"
     rounds = {"conservative": 50, "balanced": 70, "responsive": 90}[spec.xgb_profile]
@@ -276,6 +305,7 @@ def train_candidate(
         "feature_profile": spec.feature_profile,
         "xgb_profile": spec.xgb_profile,
         "hmm_lookback": spec.hmm_lookback,
+        "hmm_inference": "causal_forward_filter_with_confirmation",
         "confidence_threshold": spec.confidence_threshold,
         "seed": spec.seed,
         "cost_profile": spec.cost_profile,
