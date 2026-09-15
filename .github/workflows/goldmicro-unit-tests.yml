@@ -10,6 +10,7 @@ on:
       - 'src/challenger_batch.py'
       - 'src/shadow_evaluator.py'
       - 'src/goldmicro_candidate_trainer.py'
+      - 'src/candidate_screening.py'
       - 'config/goldmicro_model_lifecycle.json'
       - 'docs/GOLDMICRO_MODEL_LIFECYCLE.md'
       - 'backtests/goldmicro_cost_model.py'
@@ -25,12 +26,15 @@ on:
       - 'scripts/run_goldmicro_model_review_batch.py'
       - 'scripts/run_goldmicro_lifecycle_batch.py'
       - 'scripts/train_goldmicro_challenger_batch.py'
+      - 'scripts/score_goldmicro_challenger_batch.py'
+      - 'scripts/run_goldmicro_challenger_research.py'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
       - 'tests/test_model_lifecycle.py'
       - 'tests/test_model_registry_and_shadow.py'
       - 'tests/test_goldmicro_candidate_trainer.py'
+      - 'tests/test_candidate_screening.py'
       - '.github/workflows/goldmicro-unit-tests.yml'
   push:
     branches:
@@ -43,6 +47,7 @@ on:
       - 'src/challenger_batch.py'
       - 'src/shadow_evaluator.py'
       - 'src/goldmicro_candidate_trainer.py'
+      - 'src/candidate_screening.py'
       - 'config/goldmicro_model_lifecycle.json'
       - 'docs/GOLDMICRO_MODEL_LIFECYCLE.md'
       - 'backtests/goldmicro_cost_model.py'
@@ -58,12 +63,15 @@ on:
       - 'scripts/run_goldmicro_model_review_batch.py'
       - 'scripts/run_goldmicro_lifecycle_batch.py'
       - 'scripts/train_goldmicro_challenger_batch.py'
+      - 'scripts/score_goldmicro_challenger_batch.py'
+      - 'scripts/run_goldmicro_challenger_research.py'
       - 'tests/test_broker_profile.py'
       - 'tests/test_goldmicro_risk_and_costs.py'
       - 'tests/test_goldmicro_replay.py'
       - 'tests/test_model_lifecycle.py'
       - 'tests/test_model_registry_and_shadow.py'
       - 'tests/test_goldmicro_candidate_trainer.py'
+      - 'tests/test_candidate_screening.py'
       - '.github/workflows/goldmicro-unit-tests.yml'
 
 permissions:
@@ -102,11 +110,14 @@ jobs:
           scripts/run_goldmicro_model_review_batch.py
           scripts/run_goldmicro_lifecycle_batch.py
           scripts/train_goldmicro_challenger_batch.py
+          scripts/score_goldmicro_challenger_batch.py
+          scripts/run_goldmicro_challenger_research.py
           src/model_lifecycle.py
           src/model_registry.py
           src/challenger_batch.py
           src/shadow_evaluator.py
           src/goldmicro_candidate_trainer.py
+          src/candidate_screening.py
 
       - name: Run isolated GOLDmicro tests
         run: >-
@@ -117,3 +128,4 @@ jobs:
           tests/test_model_lifecycle.py
           tests/test_model_registry_and_shadow.py
           tests/test_goldmicro_candidate_trainer.py
+          tests/test_candidate_screening.py
