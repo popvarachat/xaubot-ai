@@ -16,6 +16,7 @@ $VenvDir = Join-Path $VenvBase "xaubot-ai\goldmicro-research-py311"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 $Requirements = Join-Path $RepoRoot "requirements-goldmicro-research.txt"
 $Pipeline = Join-Path $RepoRoot "scripts\run_goldmicro_challenger_research.py"
+$PreflightScript = Join-Path $RepoRoot "scripts\goldmicro_research_preflight.py"
 
 function Write-Step([string]$Text) {
     Write-Host "`n=== $Text ===" -ForegroundColor Cyan
@@ -99,28 +100,10 @@ if ($LASTEXITCODE -ne 0) { throw "pip bootstrap failed" }
 if ($LASTEXITCODE -ne 0) { throw "research dependency installation failed" }
 
 Write-Step "Dependency preflight"
-$Preflight = @'
-import importlib
-import sys
-mods = [
-    "polars", "pyarrow", "MetaTrader5", "numpy", "xgboost",
-    "sklearn", "hmmlearn", "joblib", "loguru", "dotenv",
-    "pandas", "openpyxl",
-]
-failed = []
-for name in mods:
-    try:
-        mod = importlib.import_module(name)
-        ver = getattr(mod, "__version__", "ok")
-        print(f"PASS {name}: {ver}")
-    except Exception as exc:
-        failed.append((name, repr(exc)))
-        print(f"FAIL {name}: {exc}")
-if failed:
-    raise SystemExit(2)
-print(f"Python: {sys.version}")
-'@
-& $VenvPython -c $Preflight
+if (-not (Test-Path $PreflightScript)) {
+    throw "Dependency preflight script not found: $PreflightScript"
+}
+& $VenvPython $PreflightScript
 if ($LASTEXITCODE -ne 0) {
     throw "Dependency preflight failed"
 }
