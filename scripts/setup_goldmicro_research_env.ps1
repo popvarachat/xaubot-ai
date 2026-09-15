@@ -11,7 +11,8 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$VenvDir = Join-Path $RepoRoot ".venv-goldresearch"
+$VenvBase = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { $env:USERPROFILE }
+$VenvDir = Join-Path $VenvBase "xaubot-ai\goldmicro-research-py311"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 $Requirements = Join-Path $RepoRoot "requirements-goldmicro-research.txt"
 $Pipeline = Join-Path $RepoRoot "scripts\run_goldmicro_challenger_research.py"
@@ -83,6 +84,7 @@ if (-not (Test-Python311)) {
 
 Write-Step "Create isolated Python 3.11 venv"
 if (-not (Test-Path $VenvPython)) {
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $VenvDir) | Out-Null
     & py -3.11 -m venv $VenvDir
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to create $VenvDir"
