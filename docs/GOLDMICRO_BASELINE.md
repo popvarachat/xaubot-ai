@@ -23,7 +23,6 @@ Captured read-only from MetaTrader 5 on `XMGlobal-MT5 4` for `GOLDmicro` on 2026
 - Trade stops level: `0`
 - Trade freeze level: `0`
 - Spread: floating
-- Observed terminal spread during verification: `55-56 points` (`0.55-0.56` price)
 - Symbol base/profit/margin currency: `USD`
 - MT5 account currency: `THB`
 - Trade calc mode: `4`
@@ -32,99 +31,113 @@ Important correction from the initial manual assumption: the broker minimum is `
 
 ## Account-currency monetary calibration
 
-MT5 `order_calc_profit()` was used as a read-only account-aware cross-check. The verified output was:
+MT5 `order_calc_profit()` was used as a read-only account-aware cross-check. The verified output was approximately:
 
-- BUY `0.10` lot, favorable price move `+1.00` -> approximately `+3.33 THB`
-- BUY `1.00` lot, favorable price move `+1.00` -> approximately `+33.28 THB`
-- SELL `0.10` lot, favorable price move `-1.00` -> approximately `+3.33 THB`
-- SELL `1.00` lot, favorable price move `-1.00` -> approximately `+33.28 THB`
+- BUY `0.10` lot, favorable price move `+1.00` -> `+3.33 THB`
+- BUY `1.00` lot, favorable price move `+1.00` -> `+33.28 THB`
+- SELL `0.10` lot, favorable price move `-1.00` -> `+3.33 THB`
+- SELL `1.00` lot, favorable price move `-1.00` -> `+33.28 THB`
 
-This confirms that `order_calc_profit()` returns P/L in the MT5 account currency (`THB`). The symbol itself reports USD as its base/profit/margin currency, so the final cash result includes USD->THB conversion inside MT5.
-
-Therefore:
-
-1. `trade_tick_value` remains useful broker metadata.
-2. For risk sizing and backtest cash P/L in this THB account, an `order_calc_profit()`-derived account-currency calibration is canonical when available.
-3. The observed `33.28 THB` per `1.00` price move at `1.00` lot is a point-in-time calibration, not a permanent constant. It can vary with USD/THB conversion.
-4. PF is dimensionless and is unaffected by a constant currency conversion factor. Absolute P/L and drawdown in THB use account-currency values, while DD% remains the preferred cross-period risk measure.
-
-## Observed spread baseline
-
-The supplied tick CSV from 2026-09-15 showed approximately `55 points` median spread with point size `0.01`, with roughly `40-70 points` observed in that sample. Live terminal captures showed `55-56 points`, consistent with the historical sample.
-
-At the verified account-currency calibration (`33.28 THB` per `1.00` price move per `1.00` lot), a flat-price round trip with a `55-point` (`0.55`) spread costs approximately:
-
-- `1.00 lot`: `0.55 * 33.28` ≈ `18.30 THB`
-- `0.10 lot`: ≈ `1.83 THB`
-
-before slippage, commission, and swap.
-
-The supplied tick sample is suitable for broker-cost profiling, but it is only one trading day and must **not** be treated as sufficient evidence for model optimization or profitability.
-
-The server name is documentation/baseline only. Runtime connection settings must continue to come from environment/configuration (for example `MT5_SERVER`) and credentials must never be committed to the repository.
+`order_calc_profit()` returns P/L in MT5 account currency (`THB`). The observed `33.28-33.30 THB` per `1.00` price move at `1.00` lot is a point-in-time calibration, not a permanent constant.
 
 ## Safety rules for sizing
 
 1. Runtime broker specification should be read from MT5 `symbol_info()` rather than assumed.
-2. Position size must be floored to broker `volume_step`, never rounded upward in a way that increases risk.
-3. If the risk budget supports less than the broker minimum lot (`0.1`), the trade must be skipped.
-4. Account-currency risk/P&L should prefer an `order_calc_profit()`-derived calibration when the account currency differs from the symbol profit currency.
-5. Backtests must charge bid/ask spread explicitly and should add slippage, commission, and swap where applicable.
-6. Broker-reported tick economics should be cross-checked with MT5 `order_calc_profit()` before live enablement.
+2. Risk budget = account balance/equity × configured risk percent.
+3. Use `order_calc_profit()` for the 1-lot entry-to-stop move to estimate account-currency loss per lot.
+4. Raw lot = risk budget / absolute 1-lot stop loss.
+5. Floor to broker `volume_step`; never round upward in a way that increases risk.
+6. If the risk budget supports less than broker minimum lot (`0.1`), SKIP/HOLD; never force the minimum lot.
+7. Recalculate actual monetary risk after lot normalization.
 
-## One-click baseline replay
+## Observed spread profile
 
-The repository already contains legacy backtest result workbooks, including `backtests/24_final_combined_results/*.xlsx`. `scripts/run_goldmicro_baseline.py` converts those legacy trade records into a GOLDmicro/THB baseline without changing the original signal timing.
+A local MT5 GOLDmicro M1 export covering 2026-01-02 through 2026-09-15 was analyzed without committing the market-data file to GitHub.
 
-From the repository root on the Windows machine where MT5 is already logged in:
+Observed `<SPREAD>` distribution across 249,038 M1 rows:
 
-```powershell
-py -m pip install pandas openpyxl
-py scripts\run_goldmicro_baseline.py
-```
+- Mean: `47.51` points
+- Median/P50: `50`
+- P90: `54`
+- P95: `55`
+- P99: `59`
+- Minimum: `30`
+- Maximum spike: `265`
+- `88.17%` of rows were within `40-60` points
+- `99.06%` of rows were `<=60` points
 
-Default behavior:
+Operational spread validation therefore uses `40/50/55/60` points. `70/100` are separate stress scenarios.
 
-- uses the newest `#24 Final Combined` XLSX workbook;
-- uses the current MT5 account balance as starting capital (override with `--capital`);
-- calibrates account-currency cash P/L with read-only `order_calc_profit()`;
-- uses `1.0%` risk per trade by default (override with `--risk`);
-- evaluates spread scenarios `55`, `70`, and `100` points;
-- reports executed/skipped trades, WR, PF, net P/L, max DD in THB and %, expectancy, and Sharpe;
-- saves a local JSON report under `backtests/goldmicro_baseline_results/`.
+M1 `<SPREAD>` is a bar-level spread field and is not equivalent to a tick-by-tick Bid/Ask execution stream.
 
-Example overrides:
+## Capital viability validation
 
-```powershell
-py scripts\run_goldmicro_baseline.py --capital 100000 --risk 0.5 --spreads 55,70,100 --slippage 5
-```
+Fine sweep used the existing 739-trade `#24 Final Combined` trade log, current THB calibration, `1%` configured risk, zero commission/swap, and no historical FX reconstruction.
 
-The baseline runner does **not** submit, modify, or close orders. Commission and swap are currently set to zero in this baseline pass until broker/account-specific values are verified, so results must be labeled provisional.
+Validation gates:
 
-## Validation plan before optimization
+- Profit Factor `>= 1.30`
+- Max Drawdown `<= 10%`
+- Skipped trades `<= 20%`
 
-- Replace fixed XAUUSD pip-value assumptions in risk and backtest code paths.
-- Use correct BUY Ask entry / Bid exit and SELL Bid entry / Ask exit accounting.
-- Recalculate PF, maximum drawdown, expectancy, Sharpe, and equity after realistic costs.
-- Verify no look-ahead/data leakage in feature generation and model evaluation.
-- Add walk-forward/out-of-sample validation before parameter optimization is considered trustworthy.
-- Stress-test spread above the observed baseline, including 70 and 100+ point scenarios.
-- For long historical tests, either use historical USD/THB conversion or clearly label the use of a fixed account-currency calibration snapshot.
+### Operational spread sweep: 40/50/55/60 points
 
-## Current implementation stage
+- `11,000 THB`: **FAIL**. Spread 50-60 scenarios exceeded the 20% skip gate; spread 60 skip was `20.97%`.
+- `12,000 THB`: **PASS** all operational spread scenarios. Worst operational case at spread 60: PF `1.459`, DD `7.32%`, skip `18.00%`, net `+6,245.89 THB`.
+- `15,000 THB`: **PASS** with better reserve. Worst operational case at spread 60: PF `1.463`, DD `7.60%`, skip `12.04%`, net `+8,245.91 THB`.
+- `20,000 THB`: **PASS** with stronger execution coverage. Worst operational case at spread 60: PF `1.456`, DD `7.59%`, skip `7.17%`, net `+11,193.68 THB`.
 
-The branch now contains an isolated GOLDmicro foundation plus a post-trade replay layer:
+Current classification:
+
+- **Minimum Operational Capital:** `12,000 THB` — minimum tested capital passing all operational 40/50/55/60 spread gates.
+- **Recommended Capital:** `15,000 THB` — materially lower skip rate with more operating headroom.
+- **Comfortable Capital:** `20,000 THB` — minimum-lot distortion reduced to `<=7.17%` skip across the tested operational range.
+- **Full strategy-fidelity reference:** around `75,000 THB+` in the earlier coarse sweep, where tested trades reached `0%` skip under 55/70-point scenarios.
+
+These are validation classifications, not funding advice or profitability guarantees.
+
+## Stress behavior
+
+Separate stress sweep at 70/100 points:
+
+- Spread `70`: `12,000 THB` and above passed the configured PF/DD/skip gates in the tested range.
+- Spread `100`: no tested capital from `11,000` through `20,000 THB` passed all gates. The binding failure was Profit Factor, which remained around `1.24-1.27` even as skip rates improved.
+
+The 100-point failure is therefore not primarily a capital-size problem. Adding capital does not restore the strategy edge enough under this provisional cost model.
+
+Candidate runtime-policy interpretation for later design only; **not yet wired into live execution**:
+
+- `<=60` points: normal operational range supported by observed M1 data.
+- `61-70` points: degraded/stress range; provisional edge remains positive but should be treated cautiously.
+- `>70` points: abnormal-spread region and candidate HOLD/no-new-entry zone, subject to commission/slippage and tick-level validation before any live integration.
+
+## Current non-live tooling
 
 - `src/broker_profile.py`: broker symbol specification abstraction with optional account-currency cash calibration.
 - `src/goldmicro_risk.py`: conservative risk-based GOLDmicro sizing.
-- `backtests/goldmicro_cost_model.py`: Bid/Ask-aware execution-cost accounting using calibrated account-currency cash P/L when provided.
-- `backtests/goldmicro_replay.py`: replays legacy trade records with sequential equity, broker-valid lot sizing, spread/slippage/fees, PF, expectancy, Sharpe, and maximum drawdown.
-- `scripts/run_goldmicro_baseline.py`: read-only one-click XLSX replay using live MT5 account-currency calibration and 55/70/100 spread stress scenarios.
-- `.github/workflows/goldmicro-unit-tests.yml`: isolated CI for the new GOLDmicro components and syntax-check of the baseline runner.
-- `scripts/dump_goldmicro_spec.py`: read-only runtime symbol-spec and account-currency calibration capture without printing credentials or placing orders.
+- `backtests/goldmicro_cost_model.py`: Bid/Ask-aware execution-cost accounting.
+- `backtests/goldmicro_replay.py`: sequential-equity replay with PF, expectancy, Sharpe, and DD rebuild.
+- `scripts/dump_goldmicro_spec.py`: read-only runtime symbol/account calibration.
+- `scripts/run_goldmicro_baseline.py`: legacy XLSX replay with GOLDmicro sizing and cost assumptions.
+- `scripts/run_goldmicro_baseline_isolated.py`: isolated bootstrap avoiding the full upstream ML/HMM import chain.
+- `scripts/run_goldmicro_capital_sweep_isolated.py`: deterministic #24 Trade Log parser and capital/spread viability sweep.
+- `scripts/analyze_goldmicro_spread_profile.py`: local M1 `<SPREAD>` distribution analyzer; market-data file is not committed.
 
-The replay stage intentionally preserves the legacy signal/entry/exit timing. It is therefore a safer first baseline for measuring the impact of broker sizing and transaction costs, but it is **not yet a full tick-accurate backtest**. In particular, TP/SL/exit trigger timing still originates from the legacy one-price OHLC path.
+## Known limitations before optimization
+
+- Legacy entry/exit trigger timing originates from a one-price OHLC path, not tick-trigger-accurate Bid/Ask execution.
+- Current replay applies current THB cash calibration to historical trades; historical USD/THB conversion is not modeled.
+- Commission and swap are currently zero until broker/account-specific values are verified.
+- Slippage defaults to zero unless explicitly supplied.
+- The legacy workbook is replay input only; its original XAUUSD economics are not accepted as GOLDmicro performance.
 
 ## Scope of this branch
 
-`feat/goldmicro-broker-profile-v1` does **not** enable live trading or change production execution behavior. The next stage is to run the GOLDmicro baseline replay, verify commission/swap assumptions, and only then proceed to walk-forward strategy optimization.
+`feat/goldmicro-broker-profile-v1` remains non-live:
+
+- No orders are placed, modified, or closed.
+- No production execution path has been enabled.
+- No credentials or secrets are changed or committed.
+- No strategy signal parameters have been optimized yet.
+
+Next validation stage: verify broker/account transaction costs, then proceed to walk-forward/time-series validation before optimization decisions.
