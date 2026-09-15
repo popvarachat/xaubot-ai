@@ -22,7 +22,7 @@ def test_half_kelly_cannot_be_negative():
     assert half_kelly_fraction(0.30, 1.0) == 0.0
 
 
-def test_sizing_floors_to_point_zero_one_step_without_increasing_risk():
+def test_sizing_floors_to_point_one_strategy_step_without_increasing_risk():
     profile = _profile()
     result = size_goldmicro_position(
         profile=profile,
@@ -34,12 +34,28 @@ def test_sizing_floors_to_point_zero_one_step_without_increasing_risk():
         reward_risk_ratio=2.0,
     )
     assert result.approved is True
-    assert result.lot_size >= 0.1
-    assert round(result.lot_size * 100) == result.lot_size * 100
+    assert result.lot_size == 0.6
+    assert round(result.lot_size * 10) == result.lot_size * 10
     assert result.actual_risk_amount <= result.requested_risk_amount + 1e-9
 
 
-def test_sizing_rejects_when_minimum_lot_exceeds_risk_budget():
+def test_strategy_grid_does_not_emit_point_zero_one_increments():
+    profile = _profile()
+    result = size_goldmicro_position(
+        profile=profile,
+        account_balance=12_000,
+        entry_price=4300.0,
+        stop_price=4295.0,
+        risk_per_trade_percent=1.0,
+        win_rate=0.55,
+        reward_risk_ratio=2.0,
+    )
+    assert result.approved is True
+    assert result.lot_size == 0.7
+    assert result.lot_size not in {0.61, 0.62, 0.63, 0.64, 0.65, 0.66, 0.67, 0.68, 0.69}
+
+
+def test_sizing_rejects_when_strategy_minimum_lot_exceeds_risk_budget():
     profile = _profile()
     result = size_goldmicro_position(
         profile=profile,
@@ -52,7 +68,7 @@ def test_sizing_rejects_when_minimum_lot_exceeds_risk_budget():
     )
     assert result.approved is False
     assert result.lot_size == 0.0
-    assert "Broker minimum 0.1 lot" in result.reason
+    assert "Strategy minimum 0.1 lot" in result.reason
 
 
 def test_account_currency_calibration_matches_mt5_order_calc_profit():
