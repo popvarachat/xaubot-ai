@@ -25,6 +25,7 @@ class ChallengerSpec:
     feature_profile: str
     cost_profile: str
     output_dir: str
+    batch_id: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -33,6 +34,15 @@ class ChallengerSpec:
 DEFAULT_XGB_PROFILES = ("conservative", "balanced", "responsive")
 DEFAULT_FEATURE_PROFILES = ("core", "core_plus_v2")
 DEFAULT_COST_PROFILES = ("normal", "conservative")
+
+
+def _safe_batch_id(batch_id: str | None) -> str:
+    if not batch_id:
+        return ""
+    cleaned = "".join(ch for ch in str(batch_id) if ch.isalnum() or ch in ("-", "_"))
+    if not cleaned or cleaned != str(batch_id):
+        raise ValueError("batch_id contains unsafe characters")
+    return cleaned
 
 
 def build_challenger_specs(
@@ -46,12 +56,15 @@ def build_challenger_specs(
     cost_profiles: Iterable[str] = DEFAULT_COST_PROFILES,
     root: str | Path = "models",
     limit: int | None = 96,
+    batch_id: str | None = None,
 ) -> list[ChallengerSpec]:
     """Create many deterministic challenger specs in one batch.
 
     The full Cartesian grid can be very large, so default limit keeps one batch
-    bounded while still exploring many independent variants.
+    bounded while still exploring many independent variants. A batch_id makes
+    weekly/repeated research immutable instead of overwriting an earlier model.
     """
+    safe_batch = _safe_batch_id(batch_id)
     specs: list[ChallengerSpec] = []
     idx = 1
     for vals in product(
@@ -64,7 +77,8 @@ def build_challenger_specs(
         cost_profiles,
     ):
         bars, seed, xgb, hmm, conf, feat, cost = vals
-        model_id = f"gold-ch-{idx:03d}-b{bars}-s{seed}-{xgb}-h{hmm}-c{int(round(conf*100))}-{feat}-{cost}"
+        suffix = f"ch-{idx:03d}-b{bars}-s{seed}-{xgb}-h{hmm}-c{int(round(conf*100))}-{feat}-{cost}"
+        model_id = f"gold-{safe_batch}-{suffix}" if safe_batch else f"gold-{suffix}"
         out = candidate_dir(model_id, root)
         specs.append(
             ChallengerSpec(
@@ -77,6 +91,7 @@ def build_challenger_specs(
                 feature_profile=str(feat),
                 cost_profile=str(cost),
                 output_dir=str(out),
+                batch_id=safe_batch,
             )
         )
         idx += 1
