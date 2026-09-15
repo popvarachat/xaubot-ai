@@ -117,7 +117,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Dependency preflight failed"
 }
 
-Write-Step "Run GOLDmicro 24 x N chronological research matrix"
+Write-Step "Run GOLDmicro 24 x N causal research + strategy OOS validation"
 $GitSha = (& git rev-parse HEAD).Trim()
 $Args = @(
     $Pipeline,
@@ -140,7 +140,8 @@ if ($ExitCode -ne 0) {
 Write-Step "Complete"
 Write-Host "Python env : $VenvPython"
 Write-Host "Git SHA    : $GitSha"
-Write-Host "Matrix     : $Limit x $Samples = $($Limit * $Samples) jobs"
+Write-Host "Matrix     : $Limit x $Samples = $($Limit * $Samples) training jobs"
+Write-Host "OOS gate   : shortlist tested under normal + conservative GOLDmicro costs"
 Write-Host "Live model : UNCHANGED"
 Write-Host "Promotion  : DISABLED"
-Write-Host "Next       : inspect multisample_screening.json and strategy_oos_queue.json, then run PF/DD/cost OOS validation."
+Write-Host "Next       : review strategy_oos_report.json; only robust survivors enter non-executing shadow review."
