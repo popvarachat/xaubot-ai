@@ -14,6 +14,8 @@ PROFILE = BrokerSymbolProfile(
     volume_min=0.1,
     volume_max=100.0,
     volume_step=0.01,
+    cash_per_price_unit_per_lot=33.28,
+    cash_currency="THB",
 )
 
 
