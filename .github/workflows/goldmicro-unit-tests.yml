@@ -45,7 +45,7 @@ jobs:
       - name: Install isolated test dependencies
         run: >-
           python -m pip install --disable-pip-version-check
-          pytest python-dotenv polars numpy loguru
+          pytest python-dotenv polars numpy loguru pandas openpyxl
           xgboost scikit-learn hmmlearn joblib
 
       - name: Syntax-check baseline runner
