@@ -37,14 +37,10 @@ def _sample_for_cost(sample: dict, cost_profile: str) -> dict:
         raise ValueError(f"unknown cost profile: {cost_profile}")
     row = dict(sample)
     model_id = str(row.get("model_id", "unknown"))
-    replaced = re.sub(
-        r"-(normal|conservative)-s(\d+)$",
-        rf"-{cost_profile}-s\2",
-        model_id,
-    )
-    if replaced == model_id and not model_id.endswith(f"-{cost_profile}"):
+    pattern = r"-(normal|conservative)-s(\d+)$"
+    if re.search(pattern, model_id) is None:
         raise ValueError(f"cannot rewrite cost profile in model id: {model_id}")
-    row["model_id"] = replaced
+    row["model_id"] = re.sub(pattern, rf"-{cost_profile}-s\2", model_id)
     row["evaluation_cost_profile"] = cost_profile
     return row
 
