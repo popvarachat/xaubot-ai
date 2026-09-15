@@ -43,8 +43,8 @@ class GoldmicroCausalSMCAnalyzer(SMCAnalyzer):
 
         n = len(df)
         ob = np.zeros(n, dtype=np.int8)
-        ob_top = np.full(n, np.nan)
-        ob_bottom = np.full(n, np.nan)
+        ob_top: list[float | None] = [None] * n
+        ob_bottom: list[float | None] = [None] * n
         ob_origin_index = np.full(n, -1, dtype=np.int64)
 
         for i in range(self.ob_lookback, n):
@@ -54,8 +54,8 @@ class GoldmicroCausalSMCAnalyzer(SMCAnalyzer):
                 for j in range(i - 1, max(0, i - self.ob_lookback), -1):
                     if closes[j] < opens[j] and closes[i] > highs[j]:
                         ob[i] = 1
-                        ob_top[i] = highs[j]
-                        ob_bottom[i] = lows[j]
+                        ob_top[i] = float(highs[j])
+                        ob_bottom[i] = float(lows[j])
                         ob_origin_index[i] = j
                         break
 
@@ -64,8 +64,8 @@ class GoldmicroCausalSMCAnalyzer(SMCAnalyzer):
                 for j in range(i - 1, max(0, i - self.ob_lookback), -1):
                     if closes[j] > opens[j] and closes[i] < lows[j]:
                         ob[i] = -1
-                        ob_top[i] = highs[j]
-                        ob_bottom[i] = lows[j]
+                        ob_top[i] = float(highs[j])
+                        ob_bottom[i] = float(lows[j])
                         ob_origin_index[i] = j
                         break
 
@@ -76,8 +76,8 @@ class GoldmicroCausalSMCAnalyzer(SMCAnalyzer):
 
         return df.with_columns(
             pl.Series("ob", ob),
-            pl.Series("ob_top", ob_top),
-            pl.Series("ob_bottom", ob_bottom),
+            pl.Series("ob_top", ob_top, dtype=pl.Float64),
+            pl.Series("ob_bottom", ob_bottom, dtype=pl.Float64),
             pl.Series("ob_mitigated", ob_mitigated),
             pl.Series("ob_origin_index", ob_origin_index),
         )
