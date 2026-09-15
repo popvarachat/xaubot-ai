@@ -6,10 +6,16 @@ from src.shadow_evaluator import ShadowTrade, summarize_shadow
 
 
 def test_challenger_batch_generates_many_isolated_models(tmp_path):
-    specs = build_challenger_specs(root=tmp_path / "models", limit=24)
+    specs = build_challenger_specs(root=tmp_path / "models", limit=24, batch_id="batch1")
     assert len(specs) == 24
     assert len({s.model_id for s in specs}) == 24
+    assert len({s.xgb_profile for s in specs}) >= 2
+    assert len({s.seed for s in specs}) >= 2
+    assert len({s.train_bars for s in specs}) >= 2
+    assert len({s.feature_profile for s in specs}) == 2
+    assert len({s.cost_profile for s in specs}) == 2
     for spec in specs:
+        assert spec.batch_id == "batch1"
         assert_isolated_output(spec, tmp_path / "models")
         assert "candidates" in Path(spec.output_dir).parts
 
