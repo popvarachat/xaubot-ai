@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
     [int]$Limit = 24,
+    [int]$Samples = 5,
+    [int]$SampleStrideBars = 1000,
     [int]$TopK = 6,
     [switch]$PlanOnly,
     [switch]$SkipGitPull,
@@ -32,14 +34,21 @@ function Test-Python311 {
     }
 }
 
+if ($Limit -lt 1) { throw "Limit must be >= 1" }
+if ($Samples -lt 1) { throw "Samples must be >= 1" }
+if ($SampleStrideBars -lt 1) { throw "SampleStrideBars must be >= 1" }
+
 Set-Location $RepoRoot
 Write-Step "GOLDmicro Research Environment"
-Write-Host "Repo       : $RepoRoot"
-Write-Host "Venv       : $VenvDir"
-Write-Host "Candidates : $Limit"
-Write-Host "Shortlist  : $TopK"
-Write-Host "Mode       : $(if ($PlanOnly) { 'PLAN ONLY' } else { 'EXECUTE NON-LIVE' })"
-Write-Host "Promotion  : DISABLED"
+Write-Host "Repo          : $RepoRoot"
+Write-Host "Venv          : $VenvDir"
+Write-Host "Configurations: $Limit"
+Write-Host "Samples/config: $Samples"
+Write-Host "Training jobs : $Limit x $Samples = $($Limit * $Samples)"
+Write-Host "Sample stride : $SampleStrideBars M15 bars"
+Write-Host "Shortlist     : $TopK"
+Write-Host "Mode          : $(if ($PlanOnly) { 'PLAN ONLY' } else { 'EXECUTE NON-LIVE' })"
+Write-Host "Promotion     : DISABLED"
 
 if (-not (Test-Path (Join-Path $RepoRoot ".git"))) {
     throw "Repository metadata not found at $RepoRoot"
@@ -108,11 +117,13 @@ if ($LASTEXITCODE -ne 0) {
     throw "Dependency preflight failed"
 }
 
-Write-Step "Run GOLDmicro multi-challenger pipeline"
+Write-Step "Run GOLDmicro 24 x N chronological research matrix"
 $GitSha = (& git rev-parse HEAD).Trim()
 $Args = @(
     $Pipeline,
     "--limit", "$Limit",
+    "--samples", "$Samples",
+    "--sample-stride-bars", "$SampleStrideBars",
     "--top-k", "$TopK",
     "--git-sha", $GitSha
 )
@@ -129,6 +140,7 @@ if ($ExitCode -ne 0) {
 Write-Step "Complete"
 Write-Host "Python env : $VenvPython"
 Write-Host "Git SHA    : $GitSha"
+Write-Host "Matrix     : $Limit x $Samples = $($Limit * $Samples) jobs"
 Write-Host "Live model : UNCHANGED"
 Write-Host "Promotion  : DISABLED"
-Write-Host "Next       : inspect candidate_screening.json and shadow_queue.json, then run PF/DD/cost OOS validation."
+Write-Host "Next       : inspect multisample_screening.json and strategy_oos_queue.json, then run PF/DD/cost OOS validation."
