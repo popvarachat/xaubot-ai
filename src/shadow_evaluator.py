@@ -6,7 +6,7 @@ changes the active model. It summarizes candidate outcomes for lifecycle gates.
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-from math import sqrt
+from math import sqrt, isfinite
 from typing import Iterable
 
 
@@ -34,7 +34,11 @@ class ShadowSummary:
     sharpe_like: float
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        data = asdict(self)
+        if not isfinite(self.profit_factor):
+            data["profit_factor"] = None
+            data["profit_factor_note"] = "undefined/infinite because no gross loss was observed"
+        return data
 
 
 def summarize_shadow(
