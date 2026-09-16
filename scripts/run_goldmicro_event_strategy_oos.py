@@ -1,9 +1,11 @@
-"""Run PF/DD/cost robustness for GOLDmicro event-success candidates.
+"""Run PF/DD/cost robustness for GOLDmicro calibrated event-success candidates.
 
-This runner is intentionally separate from run_goldmicro_strategy_oos.py because
-event-target XGBoost predicts setup success probability, not BUY/SELL direction.
-SMC remains the source of direction/SL/TP; the model is a fixed p>=0.50 entry gate.
-No threshold tuning, live activation, order placement or promotion is performed.
+Event XGBoost predicts setup-success probability, not BUY/SELL direction. SMC
+remains the source of direction/SL/TP. Entry is allowed only when calibrated
+P(success) is at least that setup's broker-cost break-even probability for the
+cost profile being tested. The policy is frozen before PF/DD; no return-driven
+probability-threshold tuning, live activation, order placement or promotion is
+performed.
 """
 from __future__ import annotations
 
@@ -18,7 +20,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.goldmicro_event_strategy_oos import (
-    DEFAULT_MIN_SUCCESS_PROBABILITY,
+    ECONOMIC_GATE_POLICY,
     EVENT_MODEL_SEMANTICS,
     evaluate_event_strategy_sample,
 )
@@ -43,7 +45,7 @@ def _failed_sample(sample: dict, cost_profile: str, error: Exception) -> SampleS
         max_drawdown_percent=100.0,
         expectancy_thb=0.0,
         risk_skips=0,
-        risk_skip_percent=100.0,
+        risk_skip_percent=0.0,
         model_blocks=0,
         average_lot=0.0,
         status="STRATEGY_SAMPLE_REJECT",
@@ -72,12 +74,7 @@ def _robust_summary(base_id: str, by_cost: dict[str, dict]) -> dict:
     }
 
 
-def run_queue(
-    queue_path: Path,
-    *,
-    thresholds: StrategyOOSThresholds,
-    min_success_probability: float = DEFAULT_MIN_SUCCESS_PROBABILITY,
-) -> Path:
+def run_queue(queue_path: Path, *, thresholds: StrategyOOSThresholds) -> Path:
     queue = json.loads(queue_path.read_text(encoding="utf-8"))
     configs = queue.get("configurations") or []
     report_dir = queue_path.parent
@@ -93,7 +90,8 @@ def run_queue(
     print(f"Queue          : {queue_path}")
     print(f"Model semantics: {EVENT_MODEL_SEMANTICS}")
     print("Direction      : causal SMC only")
-    print(f"Entry gate      : event success probability >= {min_success_probability:.2f}")
+    print("Entry gate     : calibrated P(success) >= setup cost break-even probability")
+    print(f"Gate policy    : {ECONOMIC_GATE_POLICY}")
     print("Threshold tune : DISABLED")
     print(f"Configurations : {len(configs)}")
     print(f"Chron samples  : {chronological_samples}")
@@ -122,7 +120,6 @@ def run_queue(
                         market_snapshot_path=snapshot,
                         cost_profile=cost_profile,
                         thresholds=thresholds,
-                        min_success_probability=min_success_probability,
                     )
                 except Exception as exc:
                     result = _failed_sample(sample, cost_profile, exc)
@@ -162,7 +159,7 @@ def run_queue(
         "state": "EVENT_STRATEGY_OOS_COMPLETE",
         "model_semantics": EVENT_MODEL_SEMANTICS,
         "direction_source": "causal_smc",
-        "event_probability_gate": min_success_probability,
+        "event_probability_gate": ECONOMIC_GATE_POLICY,
         "threshold_tuning_performed": False,
         "thresholds": thresholds.__dict__,
         "cost_profiles": list(COST_PROFILES),
@@ -181,7 +178,7 @@ def run_queue(
         "batch_id": queue.get("batch_id"),
         "state": "AWAITING_SHADOW_AND_INDEPENDENT_AUDIT" if robust_pass else "NO_EVENT_STRATEGY_ROBUST_SURVIVORS",
         "model_semantics": EVENT_MODEL_SEMANTICS,
-        "event_probability_gate": min_success_probability,
+        "event_probability_gate": ECONOMIC_GATE_POLICY,
         "configurations": robust_pass,
         "promotion_performed": False,
     }, indent=2, default=str), encoding="utf-8")
@@ -211,7 +208,6 @@ def main() -> int:
     ap.add_argument("--max-dd", type=float, default=10.0)
     ap.add_argument("--max-skip", type=float, default=20.0)
     ap.add_argument("--min-trades", type=int, default=30)
-    ap.add_argument("--event-prob", type=float, default=DEFAULT_MIN_SUCCESS_PROBABILITY)
     args = ap.parse_args()
     thresholds = StrategyOOSThresholds(
         initial_capital_thb=args.capital,
@@ -221,11 +217,7 @@ def main() -> int:
         max_risk_skip_percent=args.max_skip,
         min_trades=args.min_trades,
     )
-    run_queue(
-        args.queue,
-        thresholds=thresholds,
-        min_success_probability=args.event_prob,
-    )
+    run_queue(args.queue, thresholds=thresholds)
     return 0
 
 
