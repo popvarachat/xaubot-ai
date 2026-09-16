@@ -8,6 +8,7 @@ on:
       - 'scripts/diagnose_goldmicro_smc_setup_v5_mechanics.py'
       - 'scripts/run_goldmicro_smc_setup_v5_baseline.py'
       - 'scripts/diagnose_goldmicro_smc_setup_v5_instability.py'
+      - 'scripts/freeze_goldmicro_smc_setup_v5_prospective.py'
       - 'tests/test_goldmicro_smc_setup_v5.py'
       - 'tests/test_goldmicro_smc_setup_v5_baseline.py'
       - '.github/workflows/goldmicro-smc-setup-v5-tests.yml'
@@ -20,6 +21,7 @@ on:
       - 'scripts/diagnose_goldmicro_smc_setup_v5_mechanics.py'
       - 'scripts/run_goldmicro_smc_setup_v5_baseline.py'
       - 'scripts/diagnose_goldmicro_smc_setup_v5_instability.py'
+      - 'scripts/freeze_goldmicro_smc_setup_v5_prospective.py'
       - 'tests/test_goldmicro_smc_setup_v5.py'
       - 'tests/test_goldmicro_smc_setup_v5_baseline.py'
       - '.github/workflows/goldmicro-smc-setup-v5-tests.yml'
@@ -51,6 +53,7 @@ jobs:
           scripts/diagnose_goldmicro_smc_setup_v5_mechanics.py
           scripts/run_goldmicro_smc_setup_v5_baseline.py
           scripts/diagnose_goldmicro_smc_setup_v5_instability.py
+          scripts/freeze_goldmicro_smc_setup_v5_prospective.py
           tests/test_goldmicro_smc_setup_v5.py
           tests/test_goldmicro_smc_setup_v5_baseline.py
       - name: Smoke test V5 research CLIs
@@ -58,6 +61,7 @@ jobs:
           python scripts/diagnose_goldmicro_smc_setup_v5_mechanics.py --help
           && python scripts/run_goldmicro_smc_setup_v5_baseline.py --help
           && python scripts/diagnose_goldmicro_smc_setup_v5_instability.py --help
+          && python scripts/freeze_goldmicro_smc_setup_v5_prospective.py --help
       - name: Run V5 tests
         run: >-
           python -m pytest -q
