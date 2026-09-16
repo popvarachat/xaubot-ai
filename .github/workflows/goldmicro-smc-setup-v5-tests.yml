@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install research test dependencies
-        run: python -m pip install --disable-pip-version-check pytest polars numpy loguru
+        run: python -m pip install --disable-pip-version-check pytest python-dotenv polars numpy loguru
       - name: Syntax check V5 module
         run: python -m py_compile src/goldmicro_smc_setup_v5.py tests/test_goldmicro_smc_setup_v5.py
       - name: Run V5 tests
