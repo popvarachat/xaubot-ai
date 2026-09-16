@@ -7,7 +7,6 @@ is accepted.  No orders are sent and no live model is modified.
 """
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -227,9 +226,15 @@ def evaluate_event_strategy_sample(
     gross_loss = abs(sum(value for value in profits if value < 0))
     pf = gross_win / gross_loss if gross_loss > 0 else (float("inf") if gross_win > 0 else 0.0)
     expectancy = sum(profits) / len(profits) if profits else 0.0
-    risk_skip_pct = risk_skips / accepted_candidates * 100.0 if accepted_candidates else 100.0
+    # If the model gate accepted no candidates, risk sizing was never attempted.
+    # Reporting 100% risk skips would conflate model rejection with sizing rejection.
+    risk_skip_pct = risk_skips / accepted_candidates * 100.0 if accepted_candidates else 0.0
 
     reasons: list[str] = []
+    if accepted_candidates == 0:
+        reasons.append(
+            f"no event candidates cleared probability gate p>={min_success_probability:.2f}"
+        )
     if len(profits) < thresholds.min_trades:
         reasons.append(f"trades {len(profits)} < {thresholds.min_trades}")
     if pf < thresholds.min_profit_factor:
