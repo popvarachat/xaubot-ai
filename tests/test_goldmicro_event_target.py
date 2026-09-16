@@ -2,7 +2,11 @@ from datetime import datetime, timedelta
 
 import polars as pl
 
-from src.goldmicro_event_target import _resolve_outcome, split_events_by_raw_time
+from src.goldmicro_event_target import (
+    _event_rows_to_frame,
+    _resolve_outcome,
+    split_events_by_raw_time,
+)
 
 
 def _ohlc(highs, lows):
@@ -73,3 +77,14 @@ def test_timeout_is_negative():
     assert target == 0
     assert reason == "TIMEOUT_NO_TP_FIRST"
     assert idx == 2
+
+
+def test_event_frame_scans_all_rows_before_inferring_numeric_schema():
+    rows = [{"mixed_numeric": i, "event_index": i} for i in range(120)]
+    rows[-1]["mixed_numeric"] = 5138.891338
+
+    frame = _event_rows_to_frame(rows)
+
+    assert frame.height == 120
+    assert frame["mixed_numeric"].dtype == pl.Float64
+    assert frame["mixed_numeric"][-1] == 5138.891338
