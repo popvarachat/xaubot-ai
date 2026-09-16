@@ -50,7 +50,7 @@ def test_event_exit_uses_adverse_same_bar_ordering() -> None:
     assert reason == "AMBIGUOUS_BAR_STOP_FIRST"
 
 
-def test_event_strategy_evaluator_accepts_event32_ids_without_cost_id_rewrite(tmp_path) -> None:
+def _write_fixture(tmp_path, *, event_feature: float = 1.0):
     start = datetime(2026, 1, 5, 10, 0)
     times = [start + timedelta(minutes=15 * i) for i in range(40)]
     market = pl.DataFrame({
@@ -73,7 +73,7 @@ def test_event_strategy_evaluator_accepts_event32_ids_without_cost_id_rewrite(tm
         "event_take_profit": [101.5],
         "event_smc_confidence": [0.75],
         "regime_name": ["medium_volatility"],
-        "f1": [1.0],
+        "f1": [event_feature],
     })
     event_path = tmp_path / "event_data.parquet"
     events.write_parquet(event_path)
@@ -95,6 +95,11 @@ def test_event_strategy_evaluator_accepts_event32_ids_without_cost_id_rewrite(tm
         "training_data_path": str(event_path),
         "split": {"test_first_event_index": 5},
     }
+    return snapshot, sample
+
+
+def test_event_strategy_evaluator_accepts_event32_ids_without_cost_id_rewrite(tmp_path) -> None:
+    snapshot, sample = _write_fixture(tmp_path)
     thresholds = StrategyOOSThresholds(
         initial_capital_thb=20000.0,
         risk_per_trade_percent=1.0,
@@ -114,3 +119,28 @@ def test_event_strategy_evaluator_accepts_event32_ids_without_cost_id_rewrite(tm
     assert result.trades == 1
     assert result.model_id.endswith("::cost=normal::p>=0.01")
     assert result.status == "STRATEGY_SAMPLE_PASS"
+
+
+def test_model_block_is_not_reported_as_risk_skip(tmp_path) -> None:
+    snapshot, sample = _write_fixture(tmp_path)
+    thresholds = StrategyOOSThresholds(
+        initial_capital_thb=20000.0,
+        risk_per_trade_percent=1.0,
+        min_profit_factor=1.30,
+        max_drawdown_percent=10.0,
+        max_risk_skip_percent=20.0,
+        min_trades=1,
+        cooldown_bars=0,
+    )
+    result = evaluate_event_strategy_sample(
+        sample,
+        market_snapshot_path=snapshot,
+        cost_profile="normal",
+        thresholds=thresholds,
+        min_success_probability=0.999,
+    )
+    assert result.trades == 0
+    assert result.model_blocks == 1
+    assert result.risk_skips == 0
+    assert result.risk_skip_percent == 0.0
+    assert any("no event candidates cleared probability gate" in reason for reason in result.reasons)
