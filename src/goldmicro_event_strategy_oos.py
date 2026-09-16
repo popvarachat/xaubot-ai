@@ -1,10 +1,10 @@
 """Research-only PF/DD/cost evaluator for GOLDmicro event-success models.
 
 The event model predicts calibrated P(SMC setup reaches its own TP before its own
-SL within 32 raw M15 bars).  It MUST NOT be interpreted as BUY/SELL direction.
-SMC owns direction, stop and target; the calibrated event probability only gates
-whether a causal SMC setup is accepted.  No orders are sent and no live model is
-modified.
+SL within 32 raw M15 bars). It MUST NOT be interpreted as BUY/SELL direction.
+SMC owns direction, stop and target. The calibrated event probability is compared
+with that setup's broker-cost break-even probability; no return-driven probability
+threshold is tuned. No orders are sent and no live model is modified.
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from src.goldmicro_strategy_oos import (
 
 
 EVENT_MODEL_SEMANTICS = "p_smc_setup_tp_before_sl_within_32_bars"
-DEFAULT_MIN_SUCCESS_PROBABILITY = 0.50
+ECONOMIC_GATE_POLICY = "calibrated_probability_gte_cost_break_even"
 
 
 def _simulate_smc_exit(
@@ -118,17 +118,50 @@ def _calibrated_event_probabilities(
     return apply_platt_calibrator(margins, calibration)
 
 
+def _break_even_probability(
+    *,
+    direction: str,
+    entry_mid: float,
+    stop_mid: float,
+    target_mid: float,
+    cost_model: GoldmicroCostModel,
+) -> float:
+    """Return the success probability needed for zero expected value after cost.
+
+    Uses one-lot broker-correct PnL to the setup's own TP/SL. If either side of
+    the payoff contract is invalid after cost, fail closed with a break-even
+    probability of 1.0.
+    """
+    win = float(
+        cost_model.pnl_from_mid(
+            side=direction,
+            entry_mid=entry_mid,
+            exit_mid=target_mid,
+            lot_size=1.0,
+        ).net_pnl
+    )
+    loss = float(
+        cost_model.pnl_from_mid(
+            side=direction,
+            entry_mid=entry_mid,
+            exit_mid=stop_mid,
+            lot_size=1.0,
+        ).net_pnl
+    )
+    loss_abs = abs(min(loss, 0.0))
+    if win <= 0.0 or loss_abs <= 0.0:
+        return 1.0
+    return loss_abs / (win + loss_abs)
+
+
 def evaluate_event_strategy_sample(
     sample: dict[str, Any],
     *,
     market_snapshot_path: Path,
     cost_profile: str,
     thresholds: StrategyOOSThresholds = StrategyOOSThresholds(),
-    min_success_probability: float = DEFAULT_MIN_SUCCESS_PROBABILITY,
 ) -> SampleStrategyResult:
-    """Evaluate one untouched-OOS event sample with frozen probability calibration."""
-    if not 0.0 < min_success_probability < 1.0:
-        raise ValueError("min_success_probability must be in (0, 1)")
+    """Evaluate untouched OOS with the frozen economic probability gate."""
     model_id = str(sample.get("model_id") or "unknown")
     if "-event32-" not in model_id:
         raise ValueError(f"not an event-target model id: {model_id}")
@@ -193,17 +226,24 @@ def evaluate_event_strategy_sample(
             raise ValueError(f"event time not found in master snapshot: {event_time}")
         if idx - last_exit_market_idx < thresholds.cooldown_bars:
             continue
-        if float(probability) < min_success_probability:
-            model_blocks += 1
-            continue
 
-        accepted_candidates += 1
         row = oos.row(row_idx, named=True)
         direction = str(row["event_direction"])
         entry_mid = float(row["event_entry"])
         stop_mid = float(row["event_stop_loss"])
         target_mid = float(row["event_take_profit"])
+        break_even_probability = _break_even_probability(
+            direction=direction,
+            entry_mid=entry_mid,
+            stop_mid=stop_mid,
+            target_mid=target_mid,
+            cost_model=cost_model,
+        )
+        if float(probability) < break_even_probability:
+            model_blocks += 1
+            continue
 
+        accepted_candidates += 1
         regime_name = str(row.get("regime_name") or "medium_volatility")
         regime_multiplier = 0.5 if regime_name == "high_volatility" else 1.0
         lot, _, _ = size_with_execution_cost(
@@ -248,9 +288,7 @@ def evaluate_event_strategy_sample(
 
     reasons: list[str] = []
     if accepted_candidates == 0:
-        reasons.append(
-            f"no event candidates cleared calibrated probability gate p>={min_success_probability:.2f}"
-        )
+        reasons.append("no event candidates cleared calibrated cost break-even probability gate")
     if len(profits) < thresholds.min_trades:
         reasons.append(f"trades {len(profits)} < {thresholds.min_trades}")
     if pf < thresholds.min_profit_factor:
@@ -265,7 +303,7 @@ def evaluate_event_strategy_sample(
         reasons.append(f"expectancy {expectancy:.2f} THB <= 0")
 
     return SampleStrategyResult(
-        model_id=f"{model_id}::cost={cost_profile}::cal-p>={min_success_probability:.2f}",
+        model_id=f"{model_id}::cost={cost_profile}::gate=break-even",
         sample_index=int(sample.get("sample_index") or 0),
         trades=len(profits),
         wins=wins,
@@ -280,6 +318,6 @@ def evaluate_event_strategy_sample(
         average_lot=(sum(lots) / len(lots)) if lots else 0.0,
         status="STRATEGY_SAMPLE_PASS" if not reasons else "STRATEGY_SAMPLE_REJECT",
         reasons=tuple(reasons) if reasons else (
-            f"calibrated event-success PF/DD/cost sample gate passed at p>={min_success_probability:.2f}",
+            "calibrated event-success PF/DD/cost sample gate passed with cost break-even entry policy",
         ),
     )
