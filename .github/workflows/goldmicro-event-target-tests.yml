@@ -6,7 +6,9 @@ on:
       - 'RUN-GOLDMICRO-EVENT-STUDY.bat'
       - 'src/goldmicro_event_target.py'
       - 'src/goldmicro_event_trainer.py'
+      - 'src/goldmicro_event_calibration.py'
       - 'src/goldmicro_event_strategy_oos.py'
+      - 'src/multisample_screening.py'
       - 'scripts/run_goldmicro_event_target_study.py'
       - 'scripts/run_goldmicro_event_strategy_oos.py'
       - 'scripts/diagnose_goldmicro_event_probability_gate.py'
@@ -20,7 +22,9 @@ on:
       - 'RUN-GOLDMICRO-EVENT-STUDY.bat'
       - 'src/goldmicro_event_target.py'
       - 'src/goldmicro_event_trainer.py'
+      - 'src/goldmicro_event_calibration.py'
       - 'src/goldmicro_event_strategy_oos.py'
+      - 'src/multisample_screening.py'
       - 'scripts/run_goldmicro_event_target_study.py'
       - 'scripts/run_goldmicro_event_strategy_oos.py'
       - 'scripts/diagnose_goldmicro_event_probability_gate.py'
@@ -52,7 +56,9 @@ jobs:
           python -m py_compile
           src/goldmicro_event_target.py
           src/goldmicro_event_trainer.py
+          src/goldmicro_event_calibration.py
           src/goldmicro_event_strategy_oos.py
+          src/multisample_screening.py
           scripts/run_goldmicro_event_target_study.py
           scripts/run_goldmicro_event_strategy_oos.py
           scripts/diagnose_goldmicro_event_probability_gate.py
