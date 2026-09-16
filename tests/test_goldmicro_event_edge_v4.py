@@ -4,12 +4,15 @@ import numpy as np
 import polars as pl
 import pytest
 
+from backtests.goldmicro_cost_model import GoldmicroCostModel
 from src.goldmicro_event_edge_calibration import (
     apply_affine_calibrator,
     fit_affine_calibrator,
 )
+from src.goldmicro_event_edge_strategy_oos import setup_cost_r
 from src.goldmicro_event_edge_target import EDGE_TARGET_COLUMN, build_event_edge_frame
 from src.goldmicro_event_target import EventTargetConfig
+from src.goldmicro_strategy_oos import cost_config_for_profile, default_goldmicro_profile
 
 
 class _Signal:
@@ -41,6 +44,17 @@ def test_affine_calibration_fails_closed_on_nonpositive_slope():
     realized = -raw
     with pytest.raises(ValueError, match="non-positive slope"):
         fit_affine_calibrator(raw, realized)
+
+
+def test_conservative_cost_r_is_not_lower_than_normal():
+    profile = default_goldmicro_profile()
+    normal = GoldmicroCostModel(profile, cost_config_for_profile("normal"))
+    conservative = GoldmicroCostModel(profile, cost_config_for_profile("conservative"))
+    kwargs = dict(direction="BUY", entry_mid=2500.0, risk_distance=2.0)
+    normal_r = setup_cost_r(cost_model=normal, **kwargs)
+    conservative_r = setup_cost_r(cost_model=conservative, **kwargs)
+    assert normal_r > 0.0
+    assert conservative_r >= normal_r
 
 
 def _frame_with_minimal_features(n=150):
