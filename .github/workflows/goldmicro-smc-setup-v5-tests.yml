@@ -6,14 +6,17 @@ on:
       - 'src/goldmicro_smc_setup_v5.py'
       - 'src/goldmicro_smc_setup_v5_baseline.py'
       - 'src/goldmicro_smc_setup_v5_readiness.py'
+      - 'src/goldmicro_smc_setup_v5_collector.py'
       - 'scripts/diagnose_goldmicro_smc_setup_v5_mechanics.py'
       - 'scripts/run_goldmicro_smc_setup_v5_baseline.py'
       - 'scripts/diagnose_goldmicro_smc_setup_v5_instability.py'
       - 'scripts/freeze_goldmicro_smc_setup_v5_prospective.py'
       - 'scripts/check_goldmicro_smc_setup_v5_readiness.py'
+      - 'scripts/collect_goldmicro_smc_setup_v5_m15.py'
       - 'tests/test_goldmicro_smc_setup_v5.py'
       - 'tests/test_goldmicro_smc_setup_v5_baseline.py'
       - 'tests/test_goldmicro_smc_setup_v5_readiness.py'
+      - 'tests/test_goldmicro_smc_setup_v5_collector.py'
       - '.github/workflows/goldmicro-smc-setup-v5-tests.yml'
   push:
     branches:
@@ -22,14 +25,17 @@ on:
       - 'src/goldmicro_smc_setup_v5.py'
       - 'src/goldmicro_smc_setup_v5_baseline.py'
       - 'src/goldmicro_smc_setup_v5_readiness.py'
+      - 'src/goldmicro_smc_setup_v5_collector.py'
       - 'scripts/diagnose_goldmicro_smc_setup_v5_mechanics.py'
       - 'scripts/run_goldmicro_smc_setup_v5_baseline.py'
       - 'scripts/diagnose_goldmicro_smc_setup_v5_instability.py'
       - 'scripts/freeze_goldmicro_smc_setup_v5_prospective.py'
       - 'scripts/check_goldmicro_smc_setup_v5_readiness.py'
+      - 'scripts/collect_goldmicro_smc_setup_v5_m15.py'
       - 'tests/test_goldmicro_smc_setup_v5.py'
       - 'tests/test_goldmicro_smc_setup_v5_baseline.py'
       - 'tests/test_goldmicro_smc_setup_v5_readiness.py'
+      - 'tests/test_goldmicro_smc_setup_v5_collector.py'
       - '.github/workflows/goldmicro-smc-setup-v5-tests.yml'
 
 permissions:
@@ -57,14 +63,17 @@ jobs:
           src/goldmicro_smc_setup_v5.py
           src/goldmicro_smc_setup_v5_baseline.py
           src/goldmicro_smc_setup_v5_readiness.py
+          src/goldmicro_smc_setup_v5_collector.py
           scripts/diagnose_goldmicro_smc_setup_v5_mechanics.py
           scripts/run_goldmicro_smc_setup_v5_baseline.py
           scripts/diagnose_goldmicro_smc_setup_v5_instability.py
           scripts/freeze_goldmicro_smc_setup_v5_prospective.py
           scripts/check_goldmicro_smc_setup_v5_readiness.py
+          scripts/collect_goldmicro_smc_setup_v5_m15.py
           tests/test_goldmicro_smc_setup_v5.py
           tests/test_goldmicro_smc_setup_v5_baseline.py
           tests/test_goldmicro_smc_setup_v5_readiness.py
+          tests/test_goldmicro_smc_setup_v5_collector.py
       - name: Smoke test V5 research CLIs
         run: >-
           python scripts/diagnose_goldmicro_smc_setup_v5_mechanics.py --help
@@ -72,9 +81,11 @@ jobs:
           && python scripts/diagnose_goldmicro_smc_setup_v5_instability.py --help
           && python scripts/freeze_goldmicro_smc_setup_v5_prospective.py --help
           && python scripts/check_goldmicro_smc_setup_v5_readiness.py --help
+          && python scripts/collect_goldmicro_smc_setup_v5_m15.py --help
       - name: Run V5 tests
         run: >-
           python -m pytest -q
           tests/test_goldmicro_smc_setup_v5.py
           tests/test_goldmicro_smc_setup_v5_baseline.py
           tests/test_goldmicro_smc_setup_v5_readiness.py
+          tests/test_goldmicro_smc_setup_v5_collector.py
