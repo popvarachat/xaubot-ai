@@ -1,0 +1,116 @@
+from datetime import datetime, timedelta
+
+import numpy as np
+import polars as pl
+import xgboost as xgb
+
+from backtests.goldmicro_cost_model import GoldmicroCostModel
+from src.goldmicro_event_strategy_oos import (
+    DEFAULT_MIN_SUCCESS_PROBABILITY,
+    EVENT_MODEL_SEMANTICS,
+    _simulate_smc_exit,
+    evaluate_event_strategy_sample,
+)
+from src.goldmicro_strategy_oos import (
+    StrategyOOSThresholds,
+    cost_config_for_profile,
+    default_goldmicro_profile,
+)
+
+
+def test_event_contract_is_success_probability_not_direction() -> None:
+    assert EVENT_MODEL_SEMANTICS == "p_smc_setup_tp_before_sl_within_32_bars"
+    assert DEFAULT_MIN_SUCCESS_PROBABILITY == 0.50
+
+
+def test_event_exit_uses_adverse_same_bar_ordering() -> None:
+    market = pl.DataFrame({
+        "time": [datetime(2026, 1, 5, 10, 0) + timedelta(minutes=15 * i) for i in range(3)],
+        "open": [100.0, 100.0, 100.0],
+        "high": [100.0, 103.0, 100.0],
+        "low": [100.0, 97.0, 100.0],
+        "close": [100.0, 100.0, 100.0],
+    })
+    cost_model = GoldmicroCostModel(
+        default_goldmicro_profile(),
+        cost_config_for_profile("normal"),
+    )
+    _, exit_mid, _, reason = _simulate_smc_exit(
+        market=market,
+        event_market_index=0,
+        direction="BUY",
+        entry_mid=100.0,
+        stop_mid=98.0,
+        target_mid=102.0,
+        lot=0.10,
+        cost_model=cost_model,
+        max_holding_bars=2,
+    )
+    assert exit_mid == 98.0
+    assert reason == "AMBIGUOUS_BAR_STOP_FIRST"
+
+
+def test_event_strategy_evaluator_accepts_event32_ids_without_cost_id_rewrite(tmp_path) -> None:
+    start = datetime(2026, 1, 5, 10, 0)
+    times = [start + timedelta(minutes=15 * i) for i in range(40)]
+    market = pl.DataFrame({
+        "time": times,
+        "open": [100.0] * 40,
+        "high": [100.0] * 6 + [102.0] + [100.0] * 33,
+        "low": [100.0] * 40,
+        "close": [100.0] * 40,
+    })
+    snapshot = tmp_path / "market_snapshot_m15_master.parquet"
+    market.write_parquet(snapshot)
+
+    events = pl.DataFrame({
+        "time": [times[5]],
+        "event_index": [5],
+        "event_target": [1],
+        "event_direction": ["BUY"],
+        "event_entry": [100.0],
+        "event_stop_loss": [98.0],
+        "event_take_profit": [101.5],
+        "event_smc_confidence": [0.75],
+        "regime_name": ["medium_volatility"],
+        "f1": [1.0],
+    })
+    event_path = tmp_path / "event_data.parquet"
+    events.write_parquet(event_path)
+
+    X = np.array([[0.0], [1.0], [2.0], [3.0]], dtype=float)
+    y = np.array([0, 1, 1, 1], dtype=float)
+    booster = xgb.train(
+        {"objective": "binary:logistic", "max_depth": 1, "eta": 1.0, "seed": 7},
+        xgb.DMatrix(X, label=y, feature_names=["f1"]),
+        num_boost_round=3,
+    )
+    model_path = tmp_path / "event_xgb.json"
+    booster.save_model(model_path)
+
+    sample = {
+        "model_id": "gold-event-test-core-normal-event32-s01",
+        "sample_index": 1,
+        "xgb_path": str(model_path),
+        "training_data_path": str(event_path),
+        "split": {"test_first_event_index": 5},
+    }
+    thresholds = StrategyOOSThresholds(
+        initial_capital_thb=20000.0,
+        risk_per_trade_percent=1.0,
+        min_profit_factor=0.0,
+        max_drawdown_percent=100.0,
+        max_risk_skip_percent=100.0,
+        min_trades=1,
+        cooldown_bars=0,
+    )
+    result = evaluate_event_strategy_sample(
+        sample,
+        market_snapshot_path=snapshot,
+        cost_profile="normal",
+        thresholds=thresholds,
+        min_success_probability=0.01,
+    )
+    assert result.trades == 1
+    assert result.model_id.endswith("::cost=normal::p>=0.01")
+    assert result.status == "STRATEGY_SAMPLE_PASS"
