@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta
+import json
 
 import numpy as np
 import polars as pl
 import xgboost as xgb
 
 from backtests.goldmicro_cost_model import GoldmicroCostModel
+from src.goldmicro_event_calibration import CALIBRATION_METHOD
 from src.goldmicro_event_strategy_oos import (
     DEFAULT_MIN_SUCCESS_PROBABILITY,
     EVENT_MODEL_SEMANTICS,
@@ -88,17 +90,31 @@ def _write_fixture(tmp_path, *, event_feature: float = 1.0):
     model_path = tmp_path / "event_xgb.json"
     booster.save_model(model_path)
 
+    # Identity-like Platt mapping on the XGBoost margin: sigmoid(margin).
+    calibration_path = tmp_path / "event_calibration.json"
+    calibration_path.write_text(
+        json.dumps({
+            "method": CALIBRATION_METHOD,
+            "coef": 1.0,
+            "intercept": 0.0,
+            "sample_count": 100,
+            "positive_rate": 0.25,
+        }),
+        encoding="utf-8",
+    )
+
     sample = {
         "model_id": "gold-event-test-core-normal-event32-s01",
         "sample_index": 1,
         "xgb_path": str(model_path),
+        "calibration_path": str(calibration_path),
         "training_data_path": str(event_path),
         "split": {"test_first_event_index": 5},
     }
     return snapshot, sample
 
 
-def test_event_strategy_evaluator_accepts_event32_ids_without_cost_id_rewrite(tmp_path) -> None:
+def test_event_strategy_evaluator_requires_calibration_and_accepts_event32_id(tmp_path) -> None:
     snapshot, sample = _write_fixture(tmp_path)
     thresholds = StrategyOOSThresholds(
         initial_capital_thb=20000.0,
@@ -117,8 +133,24 @@ def test_event_strategy_evaluator_accepts_event32_ids_without_cost_id_rewrite(tm
         min_success_probability=0.01,
     )
     assert result.trades == 1
-    assert result.model_id.endswith("::cost=normal::p>=0.01")
+    assert result.model_id.endswith("::cost=normal::cal-p>=0.01")
     assert result.status == "STRATEGY_SAMPLE_PASS"
+
+
+def test_missing_calibration_artifact_is_rejected(tmp_path) -> None:
+    snapshot, sample = _write_fixture(tmp_path)
+    sample["calibration_path"] = str(tmp_path / "missing.json")
+    try:
+        evaluate_event_strategy_sample(
+            sample,
+            market_snapshot_path=snapshot,
+            cost_profile="normal",
+            min_success_probability=0.01,
+        )
+    except FileNotFoundError as exc:
+        assert "requires calibration artifact" in str(exc)
+    else:
+        raise AssertionError("missing calibration artifact must fail closed")
 
 
 def test_model_block_is_not_reported_as_risk_skip(tmp_path) -> None:
@@ -143,4 +175,4 @@ def test_model_block_is_not_reported_as_risk_skip(tmp_path) -> None:
     assert result.model_blocks == 1
     assert result.risk_skips == 0
     assert result.risk_skip_percent == 0.0
-    assert any("no event candidates cleared probability gate" in reason for reason in result.reasons)
+    assert any("no event candidates cleared calibrated probability gate" in reason for reason in result.reasons)
