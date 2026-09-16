@@ -16,9 +16,14 @@ import json
 from collections import defaultdict
 from pathlib import Path
 from statistics import median
+import sys
 
 import numpy as np
 import polars as pl
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.goldmicro_event_edge_target import EDGE_TARGET_COLUMN
 from src.goldmicro_strategy_oos import _session
