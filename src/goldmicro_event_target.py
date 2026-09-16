@@ -51,6 +51,20 @@ def _resolve_outcome(
     return 0, "TIMEOUT_NO_TP_FIRST", end
 
 
+def _event_rows_to_frame(rows: list[dict[str, Any]]) -> pl.DataFrame:
+    """Build the event frame after scanning every row for a stable schema.
+
+    Some MT5/feature columns are integer-valued for long stretches and only later
+    contain floating-point values. Polars' default 100-row schema inference can
+    therefore infer an integer builder and fail when a later float arrives. Event
+    batches are small enough that full-row schema inference is cheap and avoids
+    making the research result depend on row ordering.
+    """
+    if not rows:
+        return pl.DataFrame()
+    return pl.from_dicts(rows, infer_schema_length=None)
+
+
 def build_event_target_frame(
     df: pl.DataFrame,
     *,
@@ -108,9 +122,7 @@ def build_event_target_frame(
         rows.append(row)
         last_event_index = idx
 
-    if not rows:
-        return pl.DataFrame()
-    return pl.DataFrame(rows)
+    return _event_rows_to_frame(rows)
 
 
 def split_events_by_raw_time(
