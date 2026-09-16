@@ -7,6 +7,7 @@ from src.goldmicro_event_target import (
     _resolve_outcome,
     split_events_by_raw_time,
 )
+from src.goldmicro_event_trainer import _split_fit_calibration_oos
 
 
 def _ohlc(highs, lows):
@@ -62,6 +63,25 @@ def test_raw_time_embargo_is_measured_in_bar_indices_not_event_rows():
     )
     assert train["event_index"].to_list() == [60, 67]
     assert test["event_index"].to_list() == [132, 150]
+
+
+def test_fit_calibration_oos_split_keeps_oos_untouched():
+    events = pl.DataFrame({
+        "event_index": list(range(0, 201, 5)),
+        "event_target": [i % 2 for i in range(len(range(0, 201, 5)))],
+    })
+    fit, calibration, oos, fit_split = _split_fit_calibration_oos(
+        events,
+        raw_oos_split_index=150,
+        label_horizon_bars=10,
+    )
+    assert fit_split == 120
+    assert max(fit["event_index"].to_list()) <= 109
+    assert min(calibration["event_index"].to_list()) >= 130
+    assert max(calibration["event_index"].to_list()) <= 139
+    assert min(oos["event_index"].to_list()) >= 160
+    assert set(fit["event_index"].to_list()).isdisjoint(calibration["event_index"].to_list())
+    assert set(calibration["event_index"].to_list()).isdisjoint(oos["event_index"].to_list())
 
 
 def test_timeout_is_negative():
