@@ -29,7 +29,6 @@ def test_no_fresh_rows_waits_without_outcomes():
 def test_unmatured_tail_events_do_not_count():
     cutoff = datetime(2026, 9, 16, 9, 0)
     timestamps = _times(80, datetime(2026, 9, 16, 0, 0))
-    # 15:45 and later entries have less than 32 bars of future path here.
     fresh_events = [37, 40, 45, 50, 60, 70]
     result = evaluate_readiness(
         timestamps=timestamps,
@@ -48,9 +47,12 @@ def test_unmatured_tail_events_do_not_count():
 
 def test_ready_only_when_every_block_has_minimum_matured_events():
     cutoff = datetime(2026, 9, 16, 9, 0)
-    timestamps = _times(220, datetime(2026, 9, 16, 0, 0))
-    # Fresh starts at index 37. With 32-bar maturity, entries through 187 can count.
-    events = [45, 55, 95, 105, 145, 155]
+    timestamps = _times(300, datetime(2026, 9, 16, 0, 0))
+    # Fresh starts at index 37. Three equal raw-time blocks are approximately
+    # [37,124), [124,212), [212,300). With a 32-bar horizon, entries through
+    # index 267 are matured, so these six events provide two matured events in
+    # every block without relying on the incomplete tail.
+    events = [45, 55, 130, 140, 220, 230]
     result = evaluate_readiness(
         timestamps=timestamps,
         event_entry_indices=events,
