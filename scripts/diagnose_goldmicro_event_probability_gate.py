@@ -1,10 +1,9 @@
-"""Diagnose GOLDmicro event-model score scale before any strategy-threshold change.
+"""Diagnose GOLDmicro calibrated event probabilities before strategy evaluation.
 
 This script intentionally does NOT calculate PF/DD, optimize a threshold, or
-promote a model.  It inspects held-out event probabilities, observed event base
-rates and broker-cost break-even probabilities so that any later gate policy can
-be declared from model semantics/economics rather than chosen after seeing
-strategy returns.
+promote a model.  It inspects untouched-OOS calibrated probabilities, observed
+event base rates and broker-cost break-even probabilities so later gate policy
+is declared from probability semantics/economics rather than chosen from returns.
 """
 from __future__ import annotations
 
@@ -24,7 +23,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backtests.goldmicro_cost_model import GoldmicroCostModel
-from src.goldmicro_event_strategy_oos import _event_probabilities
+from src.goldmicro_event_strategy_oos import _calibrated_event_probabilities
 from src.goldmicro_strategy_oos import _session, cost_config_for_profile, default_goldmicro_profile
 
 COST_PROFILES = ("normal", "conservative")
@@ -87,16 +86,27 @@ def run(queue_path: Path) -> Path:
         for sample in config.get("samples") or []:
             event_path = Path(str(sample.get("training_data_path") or ""))
             model_path = Path(str(sample.get("xgb_path") or ""))
+            calibration_path = Path(str(sample.get("calibration_path") or ""))
             split = sample.get("split") or {}
             test_first = int(split.get("test_first_event_index") or -1)
-            if not event_path.exists() or not model_path.exists() or test_first < 0:
-                raise ValueError(f"missing event artifact/split for {sample.get('model_id')}")
+            if (
+                not event_path.exists()
+                or not model_path.exists()
+                or not calibration_path.exists()
+                or test_first < 0
+            ):
+                raise ValueError(
+                    f"missing calibrated event artifact/split for {sample.get('model_id')}"
+                )
 
             events = pl.read_parquet(event_path)
             oos = events.filter(pl.col("event_index") >= test_first).sort("time")
             booster = xgb.Booster()
             booster.load_model(model_path)
-            probs = np.asarray(_event_probabilities(oos, booster), dtype=float)
+            probs = np.asarray(
+                _calibrated_event_probabilities(oos, booster, calibration_path),
+                dtype=float,
+            )
             y = np.asarray(oos["event_target"].to_numpy(), dtype=int)
             mask = _eligible_session_mask(oos["time"].to_list())
             session_oos = oos.filter(pl.Series(mask))
@@ -135,22 +145,23 @@ def run(queue_path: Path) -> Path:
     output = {
         "generated_at": datetime.now().isoformat(),
         "batch_id": queue.get("batch_id"),
-        "state": "EVENT_PROBABILITY_DIAGNOSTIC_ONLY",
+        "state": "CALIBRATED_EVENT_PROBABILITY_DIAGNOSTIC_ONLY",
         "strategy_pf_dd_evaluated": False,
         "threshold_optimized": False,
         "promotion_performed": False,
         "interpretation": (
-            "Use this report only to understand event-score scale, base rate and broker-cost break-even "
-            "probabilities. Do not select a probability threshold from PF/DD because PF/DD is not computed here."
+            "Use only untouched-OOS calibrated probabilities from the frozen pre-OOS calibrator. "
+            "Do not select a threshold from PF/DD because PF/DD is not computed here."
         ),
         "samples": rows,
     }
     out = queue_path.parent / "event_probability_gate_diagnostic.json"
     out.write_text(json.dumps(output, indent=2, default=str), encoding="utf-8")
 
-    print("=== GOLDmicro Event Probability Gate Diagnostic ===")
+    print("=== GOLDmicro Calibrated Event Probability Gate Diagnostic ===")
     print(f"Queue          : {queue_path}")
     print(f"Samples        : {len(rows)}")
+    print("Probability    : frozen pre-OOS Platt calibration")
     print("PF/DD          : NOT EVALUATED")
     print("Threshold tune : DISABLED")
     print("Promotion      : DISABLED")
