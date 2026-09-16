@@ -12,6 +12,7 @@ on:
       - 'scripts/run_goldmicro_event_target_study.py'
       - 'scripts/run_goldmicro_event_strategy_oos.py'
       - 'scripts/diagnose_goldmicro_event_probability_gate.py'
+      - 'scripts/diagnose_goldmicro_event_strategy_failure.py'
       - 'tests/test_goldmicro_event_target.py'
       - 'tests/test_goldmicro_event_strategy_oos.py'
       - '.github/workflows/goldmicro-event-target-tests.yml'
@@ -28,6 +29,7 @@ on:
       - 'scripts/run_goldmicro_event_target_study.py'
       - 'scripts/run_goldmicro_event_strategy_oos.py'
       - 'scripts/diagnose_goldmicro_event_probability_gate.py'
+      - 'scripts/diagnose_goldmicro_event_strategy_failure.py'
       - 'tests/test_goldmicro_event_target.py'
       - 'tests/test_goldmicro_event_strategy_oos.py'
       - '.github/workflows/goldmicro-event-target-tests.yml'
@@ -62,6 +64,7 @@ jobs:
           scripts/run_goldmicro_event_target_study.py
           scripts/run_goldmicro_event_strategy_oos.py
           scripts/diagnose_goldmicro_event_probability_gate.py
+          scripts/diagnose_goldmicro_event_strategy_failure.py
       - name: Run event-target tests
         run: >-
           python -m pytest -q
