@@ -1,0 +1,49 @@
+name: GOLDmicro Event Target Tests
+
+on:
+  pull_request:
+    paths:
+      - 'RUN-GOLDMICRO-EVENT-STUDY.bat'
+      - 'src/goldmicro_event_target.py'
+      - 'src/goldmicro_event_trainer.py'
+      - 'scripts/run_goldmicro_event_target_study.py'
+      - 'tests/test_goldmicro_event_target.py'
+      - '.github/workflows/goldmicro-event-target-tests.yml'
+  push:
+    branches:
+      - 'feat/goldmicro-event-target-v2'
+    paths:
+      - 'RUN-GOLDMICRO-EVENT-STUDY.bat'
+      - 'src/goldmicro_event_target.py'
+      - 'src/goldmicro_event_trainer.py'
+      - 'scripts/run_goldmicro_event_target_study.py'
+      - 'tests/test_goldmicro_event_target.py'
+      - '.github/workflows/goldmicro-event-target-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  event-target-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install research test dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check
+          pytest python-dotenv polars numpy loguru pandas openpyxl
+          xgboost scikit-learn hmmlearn joblib
+      - name: Syntax check event-target modules
+        run: >-
+          python -m py_compile
+          src/goldmicro_event_target.py
+          src/goldmicro_event_trainer.py
+          scripts/run_goldmicro_event_target_study.py
+      - name: Run event-target tests
+        run: python -m pytest -q tests/test_goldmicro_event_target.py
