@@ -6,8 +6,11 @@ on:
       - 'RUN-GOLDMICRO-EVENT-STUDY.bat'
       - 'src/goldmicro_event_target.py'
       - 'src/goldmicro_event_trainer.py'
+      - 'src/goldmicro_event_strategy_oos.py'
       - 'scripts/run_goldmicro_event_target_study.py'
+      - 'scripts/run_goldmicro_event_strategy_oos.py'
       - 'tests/test_goldmicro_event_target.py'
+      - 'tests/test_goldmicro_event_strategy_oos.py'
       - '.github/workflows/goldmicro-event-target-tests.yml'
   push:
     branches:
@@ -16,8 +19,11 @@ on:
       - 'RUN-GOLDMICRO-EVENT-STUDY.bat'
       - 'src/goldmicro_event_target.py'
       - 'src/goldmicro_event_trainer.py'
+      - 'src/goldmicro_event_strategy_oos.py'
       - 'scripts/run_goldmicro_event_target_study.py'
+      - 'scripts/run_goldmicro_event_strategy_oos.py'
       - 'tests/test_goldmicro_event_target.py'
+      - 'tests/test_goldmicro_event_strategy_oos.py'
       - '.github/workflows/goldmicro-event-target-tests.yml'
 
 permissions:
@@ -44,6 +50,11 @@ jobs:
           python -m py_compile
           src/goldmicro_event_target.py
           src/goldmicro_event_trainer.py
+          src/goldmicro_event_strategy_oos.py
           scripts/run_goldmicro_event_target_study.py
+          scripts/run_goldmicro_event_strategy_oos.py
       - name: Run event-target tests
-        run: python -m pytest -q tests/test_goldmicro_event_target.py
+        run: >-
+          python -m pytest -q
+          tests/test_goldmicro_event_target.py
+          tests/test_goldmicro_event_strategy_oos.py
