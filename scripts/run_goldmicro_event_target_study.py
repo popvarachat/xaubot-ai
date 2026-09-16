@@ -1,9 +1,10 @@
 """One-run GOLDmicro SMC event-target research matrix.
 
 Default: 24 predictive configurations x 5 chronological probes = 120 jobs.
-The model predicts P(SMC setup TP-before-SL within 32 M15 bars). The predictive
-hard gate remains AUC >= 0.55 on >=4/5 probes; no threshold is relaxed after
-seeing results. Artifacts are research-only and never activated.
+The model predicts calibrated P(SMC setup TP-before-SL within 32 M15 bars).
+Fit, probability calibration and OOS are separated chronologically in raw-bar
+time; the OOS partition is never used for early stopping or calibration.
+Artifacts are research-only and never activated.
 """
 from __future__ import annotations
 
@@ -91,12 +92,13 @@ def run_study(
     total_jobs = len(specs) * samples
     event_cfg = EventTargetConfig(max_holding_bars=32, event_cooldown_bars=10)
 
-    print("=== GOLDmicro Event Target V2 Study ===")
+    print("=== GOLDmicro Event Target V3 Calibrated Study ===")
     print(f"Git SHA        : {git_sha}")
     print(f"Configurations : {len(specs)}")
     print(f"Samples/config : {samples}")
     print(f"Training jobs  : {len(specs)} x {samples} = {total_jobs}")
-    print("Target         : P(SMC TP before SMC SL within 32 M15 bars)")
+    print("Target         : calibrated P(SMC TP before SMC SL within 32 M15 bars)")
+    print("Split          : fit -> pre-OOS calibration -> untouched OOS")
     print("Same-bar rule  : adverse / SL first")
     print(f"AUC hard gate  : >= {min_test_auc:.2f} on >= {min_pass_rate:.0%} samples")
     print("Gate policy    : NO AUTO-RELAXATION")
@@ -151,7 +153,7 @@ def run_study(
                         git_sha=git_sha,
                         raw_m15=raw_m15,
                         raw_h1=raw_h1,
-                        data_fingerprint=f"{master_fp}:probe={sample_index}:cutoff={cutoff}:event32",
+                        data_fingerprint=f"{master_fp}:probe={sample_index}:cutoff={cutoff}:event32-calibrated",
                         event_config=event_cfg,
                     )
                     result.update({
@@ -165,9 +167,9 @@ def run_study(
                     results.append(result)
                     tm = result["train_metrics"]
                     print(
-                        f"  PASS train | AUC={tm['xgb_test_score']:.4f} | "
+                        f"  PASS train | OOS-AUC={tm['xgb_test_score']:.4f} | "
                         f"PR-AUC={tm['pr_auc']:.4f} | Brier={tm['brier']:.4f} | "
-                        f"events={result['train_event_count']}/{result['test_event_count']}"
+                        f"events={result['train_event_count']}/{result['calibration_event_count']}/{result['test_event_count']}"
                     )
                 except Exception as exc:
                     print(f"  FAIL train | {exc}")
@@ -212,7 +214,8 @@ def run_study(
             "same_bar_policy": "adverse_sl_first",
             "max_holding_bars": 32,
             "event_cooldown_bars": 10,
-            "split_policy": "raw-bar split with 32-bar embargo on each side",
+            "probability_calibration": "Platt logistic on frozen pre-OOS calibration partition",
+            "split_policy": "raw-bar fit/calibration/OOS with 32-bar embargo at each boundary; OOS untouched",
         },
         "thresholds": {
             "min_test_auc": min_test_auc,
@@ -228,8 +231,8 @@ def run_study(
         "strategy_pf_dd_status": "NOT_YET_EVALUATED" if shortlist else "SKIPPED_NO_PREDICTIVE_SURVIVORS",
         "promotion_performed": False,
         "interpretation_guard": (
-            "Event-target AUC is only a predictive pre-screen. Do not promote from this report. "
-            "PF/DD/cost, forward shadow evidence, independent review and Human Gate remain mandatory."
+            "Event-target AUC is only a predictive pre-screen. OOS is untouched by model selection/calibration. "
+            "Do not promote from this report; PF/DD/cost, forward shadow evidence, independent review and Human Gate remain mandatory."
         ),
     }
     path = report_dir / "event_target_report.json"
