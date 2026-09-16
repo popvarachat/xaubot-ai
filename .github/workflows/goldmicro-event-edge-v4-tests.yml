@@ -10,6 +10,7 @@ on:
       - 'src/goldmicro_event_edge_strategy_oos.py'
       - 'scripts/run_goldmicro_event_edge_v4_study.py'
       - 'scripts/run_goldmicro_event_edge_strategy_oos.py'
+      - 'scripts/diagnose_goldmicro_event_edge_v4_failure.py'
       - 'tests/test_goldmicro_event_edge_v4.py'
       - '.github/workflows/goldmicro-event-edge-v4-tests.yml'
   push:
@@ -23,6 +24,7 @@ on:
       - 'src/goldmicro_event_edge_strategy_oos.py'
       - 'scripts/run_goldmicro_event_edge_v4_study.py'
       - 'scripts/run_goldmicro_event_edge_strategy_oos.py'
+      - 'scripts/diagnose_goldmicro_event_edge_v4_failure.py'
       - 'tests/test_goldmicro_event_edge_v4.py'
       - '.github/workflows/goldmicro-event-edge-v4-tests.yml'
 
@@ -54,5 +56,6 @@ jobs:
           src/goldmicro_event_edge_strategy_oos.py
           scripts/run_goldmicro_event_edge_v4_study.py
           scripts/run_goldmicro_event_edge_strategy_oos.py
+          scripts/diagnose_goldmicro_event_edge_v4_failure.py
       - name: Run V4 tests
         run: python -m pytest -q tests/test_goldmicro_event_edge_v4.py
