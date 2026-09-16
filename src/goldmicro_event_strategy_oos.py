@@ -1,9 +1,10 @@
 """Research-only PF/DD/cost evaluator for GOLDmicro event-success models.
 
-The event model predicts P(SMC setup reaches its own TP before its own SL within
-32 raw M15 bars).  It MUST NOT be interpreted as BUY/SELL direction.  SMC owns
-direction, stop and target; the event model only gates whether a causal SMC setup
-is accepted.  No orders are sent and no live model is modified.
+The event model predicts calibrated P(SMC setup reaches its own TP before its own
+SL within 32 raw M15 bars).  It MUST NOT be interpreted as BUY/SELL direction.
+SMC owns direction, stop and target; the calibrated event probability only gates
+whether a causal SMC setup is accepted.  No orders are sent and no live model is
+modified.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ import polars as pl
 import xgboost as xgb
 
 from backtests.goldmicro_cost_model import GoldmicroCostModel
+from src.goldmicro_event_calibration import apply_platt_calibrator, read_calibration
 from src.goldmicro_strategy_oos import (
     SampleStrategyResult,
     StrategyOOSThresholds,
@@ -87,7 +89,7 @@ def _simulate_smc_exit(
     return end, exit_mid, float(pnl), "TIMEOUT"
 
 
-def _event_probabilities(events: pl.DataFrame, booster: xgb.Booster) -> np.ndarray:
+def _event_matrix(events: pl.DataFrame, booster: xgb.Booster) -> xgb.DMatrix:
     feature_names = list(booster.feature_names or [])
     if not feature_names:
         raise ValueError("event booster does not contain feature names")
@@ -96,8 +98,24 @@ def _event_probabilities(events: pl.DataFrame, booster: xgb.Booster) -> np.ndarr
         raise ValueError(f"event dataset missing model features: {missing[:5]}")
     X = events.select(feature_names).to_numpy()
     X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
-    dmat = xgb.DMatrix(X, feature_names=feature_names)
-    return booster.predict(dmat)
+    return xgb.DMatrix(X, feature_names=feature_names)
+
+
+def _event_probabilities(events: pl.DataFrame, booster: xgb.Booster) -> np.ndarray:
+    """Raw XGBoost logistic scores retained for diagnostics/backward tests only."""
+    return booster.predict(_event_matrix(events, booster))
+
+
+def _calibrated_event_probabilities(
+    events: pl.DataFrame,
+    booster: xgb.Booster,
+    calibration_path: Path,
+) -> np.ndarray:
+    if not calibration_path.exists():
+        raise FileNotFoundError(f"event calibration artifact missing: {calibration_path}")
+    calibration = read_calibration(calibration_path)
+    margins = booster.predict(_event_matrix(events, booster), output_margin=True)
+    return apply_platt_calibrator(margins, calibration)
 
 
 def evaluate_event_strategy_sample(
@@ -108,12 +126,7 @@ def evaluate_event_strategy_sample(
     thresholds: StrategyOOSThresholds = StrategyOOSThresholds(),
     min_success_probability: float = DEFAULT_MIN_SUCCESS_PROBABILITY,
 ) -> SampleStrategyResult:
-    """Evaluate one held-out event sample without reinterpreting model semantics.
-
-    ``training_data_path`` is the event_data.parquet emitted by the event trainer.
-    The raw M15 master snapshot is used only for future-bar TP/SL/timeout replay.
-    The event model never supplies direction and is never used for reversal exits.
-    """
+    """Evaluate one untouched-OOS event sample with frozen probability calibration."""
     if not 0.0 < min_success_probability < 1.0:
         raise ValueError("min_success_probability must be in (0, 1)")
     model_id = str(sample.get("model_id") or "unknown")
@@ -122,8 +135,13 @@ def evaluate_event_strategy_sample(
 
     event_path = Path(str(sample.get("training_data_path") or ""))
     model_path = Path(str(sample.get("xgb_path") or ""))
+    calibration_path = Path(str(sample.get("calibration_path") or ""))
     if not event_path.exists() or not model_path.exists():
         raise FileNotFoundError(f"event candidate artifact missing for {model_id}")
+    if not calibration_path.exists():
+        raise FileNotFoundError(
+            f"calibrated OOS evaluation requires calibration artifact for {model_id}"
+        )
     if not market_snapshot_path.exists():
         raise FileNotFoundError(f"market snapshot missing: {market_snapshot_path}")
 
@@ -142,7 +160,7 @@ def evaluate_event_strategy_sample(
 
     booster = xgb.Booster()
     booster.load_model(model_path)
-    probabilities = _event_probabilities(oos, booster)
+    probabilities = _calibrated_event_probabilities(oos, booster, calibration_path)
 
     market_times = market["time"].to_list()
     market_index = {value: idx for idx, value in enumerate(market_times)}
@@ -226,14 +244,12 @@ def evaluate_event_strategy_sample(
     gross_loss = abs(sum(value for value in profits if value < 0))
     pf = gross_win / gross_loss if gross_loss > 0 else (float("inf") if gross_win > 0 else 0.0)
     expectancy = sum(profits) / len(profits) if profits else 0.0
-    # If the model gate accepted no candidates, risk sizing was never attempted.
-    # Reporting 100% risk skips would conflate model rejection with sizing rejection.
     risk_skip_pct = risk_skips / accepted_candidates * 100.0 if accepted_candidates else 0.0
 
     reasons: list[str] = []
     if accepted_candidates == 0:
         reasons.append(
-            f"no event candidates cleared probability gate p>={min_success_probability:.2f}"
+            f"no event candidates cleared calibrated probability gate p>={min_success_probability:.2f}"
         )
     if len(profits) < thresholds.min_trades:
         reasons.append(f"trades {len(profits)} < {thresholds.min_trades}")
@@ -249,7 +265,7 @@ def evaluate_event_strategy_sample(
         reasons.append(f"expectancy {expectancy:.2f} THB <= 0")
 
     return SampleStrategyResult(
-        model_id=f"{model_id}::cost={cost_profile}::p>={min_success_probability:.2f}",
+        model_id=f"{model_id}::cost={cost_profile}::cal-p>={min_success_probability:.2f}",
         sample_index=int(sample.get("sample_index") or 0),
         trades=len(profits),
         wins=wins,
@@ -264,6 +280,6 @@ def evaluate_event_strategy_sample(
         average_lot=(sum(lots) / len(lots)) if lots else 0.0,
         status="STRATEGY_SAMPLE_PASS" if not reasons else "STRATEGY_SAMPLE_REJECT",
         reasons=tuple(reasons) if reasons else (
-            f"event-success PF/DD/cost sample gate passed at p>={min_success_probability:.2f}",
+            f"calibrated event-success PF/DD/cost sample gate passed at p>={min_success_probability:.2f}",
         ),
     )
