@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "symbol": "GOLDmicro",
+  "lot_policy": {
+    "strategy_min_lot": 0.1,
+    "strategy_step_lot": 0.1,
+    "risk_cap_percent_default": 1.0,
+    "recommended_research_capital_thb": 20000
+  },
+  "cadence": {
+    "signal_inference": "once per newly closed execution candle",
+    "execution_gate": "every candidate order using current spread/slippage state",
+    "open_position_review_seconds": 5,
+    "micro_review_closed_trades": 20,
+    "session_review": ["London close", "New York close"],
+    "daily_review": "after market/session close; review only, no direct promotion",
+    "weekly_challenger_batch": "weekend or market-closed maintenance window",
+    "event_review": [
+      "PF hard-gate breach",
+      "DD protect/hard-gate breach",
+      "execution cost regime breach",
+      "HMM regime drift",
+      "abnormal skip-rate"
+    ],
+    "minimum_hours_between_candidate_training": 20
+  },
+  "monitoring": {
+    "pf_hard_min": 1.3,
+    "pf_watch_min": 1.4,
+    "dd_protect_pct": 8.0,
+    "dd_hard_max_pct": 10.0,
+    "max_skip_pct": 20.0,
+    "target_execution_cost_points": 85.0,
+    "max_execution_cost_points": 90.0,
+    "min_trades_micro": 30,
+    "min_trades_promotion": 100
+  },
+  "promotion": {
+    "required_stable_windows": 3,
+    "min_shadow_trades": 50,
+    "min_shadow_days": 3,
+    "challenger_pf_margin": 0.03,
+    "challenger_dd_tolerance_pct": 0.5,
+    "human_gate_required": true,
+    "promote_only_when_flat": true,
+    "activation_boundary": "next newly closed execution candle after approval"
+  },
+  "roles": {
+    "github": "canonical code/config/model-report registry; PR and Human-Gate evidence",
+    "local_or_vps": "heavy training, walk-forward, cost-surface, Monte Carlo and shadow scoring",
+    "n8n": "scheduler/orchestrator/notification layer only; never canonical model state",
+    "cloudflare": "lightweight policy/state API, health and HOLD/ALLOW status; no heavy training"
+  },
+  "safety": {
+    "candidate_training_must_not_overwrite_active_model": true,
+    "automatic_promotion": false,
+    "automatic_live_parameter_mutation": false,
+    "rollback_reference_required": true
+  }
+}

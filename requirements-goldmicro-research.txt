@@ -1,0 +1,16 @@
+# Isolated dependencies for GOLDmicro Challenger/Lifecycle research.
+# Intentionally smaller than the full live-bot requirements.
+# Target interpreter: Python 3.11 (same major/minor used by CI).
+
+polars>=1.37.0
+pyarrow>=15.0.0
+MetaTrader5>=5.0.5572
+numpy>=1.26.0
+xgboost>=2.1.0
+scikit-learn>=1.4.0
+hmmlearn>=0.3.3
+joblib>=1.4.0
+loguru>=0.7.2
+python-dotenv>=1.0.1
+pandas>=2.1.0
+openpyxl>=3.1.0

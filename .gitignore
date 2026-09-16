@@ -49,10 +49,18 @@ data/market_data/
 data/trade_logs/trades/*.csv
 data/trade_logs/ml_data/*.csv
 
-# Models (large binary files)
+# Models and generated lifecycle artifacts
 models/*.pkl
 models/*.joblib
 models/*.h5
+models/**/*.pkl
+models/**/*.joblib
+models/**/*.h5
+models/**/*.parquet
+models/candidates/
+models/reports/
+models/archive/
+models/active/
 
 # Backtest results (generated)
 backtests/results/*.csv
