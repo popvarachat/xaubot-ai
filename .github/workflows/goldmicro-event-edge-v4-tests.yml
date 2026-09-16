@@ -1,0 +1,52 @@
+name: GOLDmicro Event Edge V4 Tests
+
+on:
+  pull_request:
+    paths:
+      - 'RUN-GOLDMICRO-EVENT-EDGE-V4.bat'
+      - 'src/goldmicro_event_edge_target.py'
+      - 'src/goldmicro_event_edge_calibration.py'
+      - 'src/goldmicro_event_edge_trainer.py'
+      - 'scripts/run_goldmicro_event_edge_v4_study.py'
+      - 'tests/test_goldmicro_event_edge_v4.py'
+      - '.github/workflows/goldmicro-event-edge-v4-tests.yml'
+  push:
+    branches:
+      - 'feat/goldmicro-event-edge-v4'
+    paths:
+      - 'RUN-GOLDMICRO-EVENT-EDGE-V4.bat'
+      - 'src/goldmicro_event_edge_target.py'
+      - 'src/goldmicro_event_edge_calibration.py'
+      - 'src/goldmicro_event_edge_trainer.py'
+      - 'scripts/run_goldmicro_event_edge_v4_study.py'
+      - 'tests/test_goldmicro_event_edge_v4.py'
+      - '.github/workflows/goldmicro-event-edge-v4-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  event-edge-v4-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install research test dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check
+          pytest python-dotenv polars numpy loguru pandas openpyxl
+          xgboost scikit-learn hmmlearn joblib
+      - name: Syntax check V4 modules
+        run: >-
+          python -m py_compile
+          src/goldmicro_event_edge_target.py
+          src/goldmicro_event_edge_calibration.py
+          src/goldmicro_event_edge_trainer.py
+          scripts/run_goldmicro_event_edge_v4_study.py
+      - name: Run V4 tests
+        run: python -m pytest -q tests/test_goldmicro_event_edge_v4.py
