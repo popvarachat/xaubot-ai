@@ -88,7 +88,7 @@ jobs:
             [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
             if ($errors.Count -gt 0) {
               $failed = $true
-              $errors | ForEach-Object { Write-Error "$file: $($_.Message)" }
+              $errors | ForEach-Object { Write-Error "${file}: $($_.Message)" }
             }
           }
           if ($failed) { exit 1 }
