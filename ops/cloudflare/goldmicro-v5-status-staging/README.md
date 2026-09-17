@@ -5,9 +5,9 @@ Purpose: expose a read-only blind status surface for the prospective GOLDmicro V
 ## Endpoints
 
 - `POST /ingest` — accepts the validated blind status contract only; requires `Authorization: Bearer <STATUS_INGEST_TOKEN>`.
-- `GET /dashboardhealth` — generic health only; never exposes run data.
-- `GET /dashboardapi/status` — latest blind status; requires Cloudflare Access identity header.
-- `GET /dashboard` — minimal status dashboard; requires Cloudflare Access identity header.
+- `GET /health` — public non-sensitive health only; returns `HEALTHY`, `STALE`, `NO_DATA`, or `INVALID_TIMESTAMP`, plus age/stale threshold. It never exposes setup counts, state, economic outcomes, or promotion data.
+- `GET /api/status` — latest blind status; requires Cloudflare Access identity.
+- `GET /dashboard` — minimal status dashboard; requires Cloudflare Access identity.
 
 The worker rejects payloads unless `economic_outcomes == "HIDDEN / NOT EVALUATED"` and `promotion == "DISABLED"`.
 
@@ -17,17 +17,10 @@ A dedicated STAGING KV namespace is bound as `STATUS_KV`. Only the latest blind 
 
 ## Stale policy
 
-Default `STALE_AFTER_MINUTES=360`. With a four-hour local collection cadence, this gives a two-hour grace window before status becomes `STALE`.
+Default `STALE_AFTER_MINUTES=360`. With a four-hour local collection cadence, this gives a two-hour grace window before status becomes `STALE`. The public `/health` endpoint is intentionally limited to non-sensitive liveness/staleness metadata so an external monitor can alert without Cloudflare Access credentials.
 
 ## Security / Human Gate
 
-This directory is code/config preparation only. Deployment requires a separate Human Gate because it creates Cloudflare resources and a secret. At deploy time:
+The STAGING deployment uses a dedicated KV namespace, a Wrangler-managed `STATUS_INGEST_TOKEN`, and Cloudflare Access scoped only to `/dashboard` and `/api/status`. `/ingest` remains protected by its bearer secret and `/health` remains public but non-sensitive for monitoring.
 
-1. create a dedicated STAGING KV namespace;
-2. copy `wrangler.toml.example` to a local uncommitted `wrangler.toml` and insert the KV namespace id;
-3. set `STATUS_INGEST_TOKEN` through Wrangler secret storage;
-4. configure Cloudflare Access for dashboard/status viewing;
-5. deploy only to STAGING;
-6. update the n8n STAGING flow to forward the already-validated blind status to `/ingest`.
-
-Do not commit tokens, Access credentials, or generated Wrangler state. Do not route production trading traffic through this worker.
+Do not commit tokens, Access credentials, generated Wrangler state, or the local `wrangler.toml`. Do not route production trading traffic through this worker. Economic outcomes remain hidden and promotion/trading remain disabled.
