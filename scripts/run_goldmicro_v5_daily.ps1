@@ -78,11 +78,11 @@ try {
             source = "goldmicro-v5-prospective"
             generated_at = (Get-Date).ToString("o")
             host = $env:COMPUTERNAME
-            state = $ReportJson.state
+            state = $ReportJson.status
             fresh_rows = $ReportJson.fresh_rows
             fresh_setup_events = $ReportJson.fresh_setup_events
             matured_setup_events = $ReportJson.matured_setup_events
-            per_block_matured = $ReportJson.per_block_matured
+            per_block_matured = $ReportJson.block_event_counts
             economic_outcomes = "HIDDEN / NOT EVALUATED"
             promotion = "DISABLED"
         } | ConvertTo-Json -Depth 5
