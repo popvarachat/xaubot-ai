@@ -62,6 +62,16 @@ function Get-BlockValue($array, [int]$index) {
     return [int]$array[$index]
 }
 
+function Get-ConfiguredEnvironmentVariable([string]$Name) {
+    $processValue = [Environment]::GetEnvironmentVariable($Name, "Process")
+    if (-not [string]::IsNullOrWhiteSpace($processValue)) { return $processValue }
+
+    $userValue = [Environment]::GetEnvironmentVariable($Name, "User")
+    if (-not [string]::IsNullOrWhiteSpace($userValue)) { return $userValue }
+
+    return $null
+}
+
 try {
     Write-RunLog "GOLDmicro V5 automated prospective run START"
 
@@ -127,9 +137,10 @@ try {
     $historyRow | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -Path $LatestStatus
     Write-RunLog "Updated local run history and latest status"
 
-    # Optional archive: point GOLDMICRO_ARCHIVE_DIR to a Google Drive Desktop-synced folder.
-    if ($env:GOLDMICRO_ARCHIVE_DIR) {
-        $ArchiveDir = $env:GOLDMICRO_ARCHIVE_DIR
+    # Optional archive: user-scope fallback lets Task Scheduler see newly configured
+    # values immediately without requiring a Windows sign-out/sign-in.
+    $ArchiveDir = Get-ConfiguredEnvironmentVariable "GOLDMICRO_ARCHIVE_DIR"
+    if ($ArchiveDir) {
         New-Item -ItemType Directory -Force -Path $ArchiveDir | Out-Null
         Copy-Item -Force $Report (Join-Path $ArchiveDir "smc_setup_v5_prospective_readiness.json")
         if (Test-Path $Snapshot) {
@@ -143,12 +154,17 @@ try {
         Copy-Item -Force $LatestStatus (Join-Path $ArchiveDir "latest_status.json")
         Write-RunLog "Archived current prospective artifacts to $ArchiveDir"
     }
+    else {
+        Write-RunLog "Archive directory not configured; local artifacts retained"
+    }
 
     # Optional n8n/Cloudflare ingress. No URL/token is stored in the repository.
-    if ($env:GOLDMICRO_N8N_WEBHOOK_URL) {
+    $WebhookUrl = Get-ConfiguredEnvironmentVariable "GOLDMICRO_N8N_WEBHOOK_URL"
+    if ($WebhookUrl) {
         $headers = @{}
-        if ($env:GOLDMICRO_N8N_WEBHOOK_TOKEN) {
-            $headers["Authorization"] = "Bearer $($env:GOLDMICRO_N8N_WEBHOOK_TOKEN)"
+        $WebhookToken = Get-ConfiguredEnvironmentVariable "GOLDMICRO_N8N_WEBHOOK_TOKEN"
+        if ($WebhookToken) {
+            $headers["Authorization"] = "Bearer $WebhookToken"
         }
         $payload = @{
             source = "goldmicro-v5-prospective"
@@ -163,7 +179,7 @@ try {
             economic_outcomes = "HIDDEN / NOT EVALUATED"
             promotion = "DISABLED"
         } | ConvertTo-Json -Depth 5
-        Invoke-RestMethod -Method Post -Uri $env:GOLDMICRO_N8N_WEBHOOK_URL -Headers $headers -ContentType "application/json" -Body $payload | Out-Null
+        Invoke-RestMethod -Method Post -Uri $WebhookUrl -Headers $headers -ContentType "application/json" -Body $payload | Out-Null
         Write-RunLog "Posted readiness summary to configured webhook"
     }
 
