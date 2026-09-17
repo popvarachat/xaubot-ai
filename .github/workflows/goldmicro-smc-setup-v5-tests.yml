@@ -13,6 +13,8 @@ on:
       - 'scripts/freeze_goldmicro_smc_setup_v5_prospective.py'
       - 'scripts/check_goldmicro_smc_setup_v5_readiness.py'
       - 'scripts/collect_goldmicro_smc_setup_v5_m15.py'
+      - 'scripts/run_goldmicro_v5_daily.ps1'
+      - 'scripts/install_goldmicro_v5_daily_task.ps1'
       - 'tests/test_goldmicro_smc_setup_v5.py'
       - 'tests/test_goldmicro_smc_setup_v5_baseline.py'
       - 'tests/test_goldmicro_smc_setup_v5_readiness.py'
@@ -32,6 +34,8 @@ on:
       - 'scripts/freeze_goldmicro_smc_setup_v5_prospective.py'
       - 'scripts/check_goldmicro_smc_setup_v5_readiness.py'
       - 'scripts/collect_goldmicro_smc_setup_v5_m15.py'
+      - 'scripts/run_goldmicro_v5_daily.ps1'
+      - 'scripts/install_goldmicro_v5_daily_task.ps1'
       - 'tests/test_goldmicro_smc_setup_v5.py'
       - 'tests/test_goldmicro_smc_setup_v5_baseline.py'
       - 'tests/test_goldmicro_smc_setup_v5_readiness.py'
@@ -74,6 +78,20 @@ jobs:
           tests/test_goldmicro_smc_setup_v5_baseline.py
           tests/test_goldmicro_smc_setup_v5_readiness.py
           tests/test_goldmicro_smc_setup_v5_collector.py
+      - name: Parse PowerShell automation scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($file in @('scripts/run_goldmicro_v5_daily.ps1', 'scripts/install_goldmicro_v5_daily_task.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              $errors | ForEach-Object { Write-Error "$file: $($_.Message)" }
+            }
+          }
+          if ($failed) { exit 1 }
       - name: Smoke test V5 research CLIs
         run: >-
           python scripts/diagnose_goldmicro_smc_setup_v5_mechanics.py --help
