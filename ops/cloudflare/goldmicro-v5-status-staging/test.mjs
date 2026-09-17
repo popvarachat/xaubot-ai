@@ -64,7 +64,7 @@ res = await worker.fetch(new Request('https://status.example/ingest', {
 }), env);
 assert.equal(res.status, 400);
 
-res = await worker.fetch(new Request('https://status.example/', {
+res = await worker.fetch(new Request('https://status.example/dashboard', {
   headers: { 'cf-access-authenticated-user-email': 'tester@example.com' },
 }), env);
 assert.equal(res.status, 200);

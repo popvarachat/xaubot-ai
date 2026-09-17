@@ -5,9 +5,9 @@ Purpose: expose a read-only blind status surface for the prospective GOLDmicro V
 ## Endpoints
 
 - `POST /ingest` — accepts the validated blind status contract only; requires `Authorization: Bearer <STATUS_INGEST_TOKEN>`.
-- `GET /health` — generic health only; never exposes run data.
-- `GET /api/status` — latest blind status; requires Cloudflare Access identity header.
-- `GET /` — minimal status dashboard; requires Cloudflare Access identity header.
+- `GET /dashboardhealth` — generic health only; never exposes run data.
+- `GET /dashboardapi/status` — latest blind status; requires Cloudflare Access identity header.
+- `GET /dashboard` — minimal status dashboard; requires Cloudflare Access identity header.
 
 The worker rejects payloads unless `economic_outcomes == "HIDDEN / NOT EVALUATED"` and `promotion == "DISABLED"`.
 

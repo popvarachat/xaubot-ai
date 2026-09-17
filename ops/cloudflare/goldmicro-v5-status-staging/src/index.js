@@ -99,7 +99,7 @@ export default {
       return json({ health, age_minutes: age, stale_after_minutes: staleAfterMinutes, record });
     }
 
-    if (url.pathname === '/' && request.method === 'GET') {
+    if (url.pathname === '/dashboard' && request.method === 'GET') {
       if (!viewAuthorized(request)) return new Response('Cloudflare Access required', { status: 401 });
       const record = await env.STATUS_KV.get('latest', 'json');
       return new Response(renderDashboard(record, staleAfterMinutes, Date.now()), {
