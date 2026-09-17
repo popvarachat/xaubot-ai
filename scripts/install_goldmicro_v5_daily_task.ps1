@@ -18,10 +18,18 @@ $PowerShell = (Get-Command powershell.exe).Source
 $Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$Runner`""
 $Action = New-ScheduledTaskAction -Execute $PowerShell -Argument $Arguments -WorkingDirectory $RepoRoot
 
+# Build repetition through New-ScheduledTaskTrigger parameters rather than mutating
+# Trigger.Repetition.* afterwards. Some Windows/PowerShell combinations expose the
+# returned CIM object's Repetition members as unavailable/read-only, which caused
+# installer failures on the target workstation.
 $Start = (Get-Date).AddMinutes(5)
-$Trigger = New-ScheduledTaskTrigger -Once -At $Start
-$Trigger.Repetition.Interval = "PT${EveryHours}H"
-$Trigger.Repetition.Duration = "P3650D"
+$Interval = New-TimeSpan -Hours $EveryHours
+$Duration = New-TimeSpan -Days 3650
+$Trigger = New-ScheduledTaskTrigger `
+    -Once `
+    -At $Start `
+    -RepetitionInterval $Interval `
+    -RepetitionDuration $Duration
 
 $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $Principal = New-ScheduledTaskPrincipal -UserId $Identity -LogonType Interactive -RunLevel Limited
