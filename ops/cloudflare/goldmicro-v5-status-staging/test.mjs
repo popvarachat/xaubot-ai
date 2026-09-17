@@ -33,6 +33,10 @@ const payload = {
 
 let res = await worker.fetch(new Request('https://status.example/health'), env);
 assert.equal(res.status, 200);
+let health = await res.json();
+assert.equal(health.ok, false);
+assert.equal(health.health, 'NO_DATA');
+assert.equal(health.age_minutes, null);
 
 res = await worker.fetch(new Request('https://status.example/ingest', { method: 'POST', body: JSON.stringify(payload) }), env);
 assert.equal(res.status, 401);
@@ -43,6 +47,12 @@ res = await worker.fetch(new Request('https://status.example/ingest', {
   body: JSON.stringify(payload),
 }), env);
 assert.equal(res.status, 202);
+
+res = await worker.fetch(new Request('https://status.example/health'), env);
+health = await res.json();
+assert.equal(health.ok, true);
+assert.equal(health.health, 'HEALTHY');
+assert.equal(health.stale_after_minutes, 360);
 
 res = await worker.fetch(new Request('https://status.example/api/status'), env);
 assert.equal(res.status, 401);
@@ -71,5 +81,22 @@ assert.equal(res.status, 200);
 const html = await res.text();
 assert.match(html, /ACCUMULATING_FRESH_EVIDENCE/);
 assert.match(html, /\[1, 0, 0, 0, 0\]/);
+
+const stalePayload = {
+  ...payload,
+  generated_at: new Date(Date.now() - 361 * 60_000).toISOString(),
+};
+res = await worker.fetch(new Request('https://status.example/ingest', {
+  method: 'POST',
+  headers: { authorization: `Bearer ${env.STATUS_INGEST_TOKEN}`, 'content-type': 'application/json' },
+  body: JSON.stringify(stalePayload),
+}), env);
+assert.equal(res.status, 202);
+
+res = await worker.fetch(new Request('https://status.example/health'), env);
+health = await res.json();
+assert.equal(health.ok, false);
+assert.equal(health.health, 'STALE');
+assert.ok(health.age_minutes >= 361);
 
 console.log('GOLDmicro status worker tests passed');
