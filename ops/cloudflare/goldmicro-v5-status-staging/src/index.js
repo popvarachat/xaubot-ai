@@ -46,10 +46,16 @@ function staleMinutes(record, nowMs) {
   return Math.max(0, Math.floor((nowMs - generated) / 60000));
 }
 
+function healthState(record, staleAfterMinutes, nowMs) {
+  if (!record) return { health: 'NO_DATA', age: null };
+  const age = staleMinutes(record, nowMs);
+  if (age === null) return { health: 'INVALID_TIMESTAMP', age: null };
+  return { health: age > staleAfterMinutes ? 'STALE' : 'HEALTHY', age };
+}
+
 function renderDashboard(record, staleAfterMinutes, nowMs) {
   const status = record?.status || null;
-  const age = status ? staleMinutes(record, nowMs) : null;
-  const health = !status ? 'NO_DATA' : (age !== null && age > staleAfterMinutes ? 'STALE' : 'HEALTHY');
+  const { health, age } = healthState(record, staleAfterMinutes, nowMs);
   const blocks = status?.per_block_matured || [0, 0, 0, 0, 0];
   const esc = (v) => String(v ?? '-').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   return `<!doctype html>
@@ -76,7 +82,17 @@ export default {
     const staleAfterMinutes = Number.parseInt(env.STALE_AFTER_MINUTES || '360', 10);
 
     if (url.pathname === '/health') {
-      return json({ ok: true, service: 'goldmicro-v5-status-staging', economics: 'HIDDEN', promotion: 'DISABLED' });
+      const record = await env.STATUS_KV.get('latest', 'json');
+      const { health, age } = healthState(record, staleAfterMinutes, Date.now());
+      return json({
+        ok: health === 'HEALTHY',
+        service: 'goldmicro-v5-status-staging',
+        health,
+        age_minutes: age,
+        stale_after_minutes: staleAfterMinutes,
+        economics: 'HIDDEN',
+        promotion: 'DISABLED',
+      });
     }
 
     if (url.pathname === '/ingest' && request.method === 'POST') {
@@ -94,8 +110,7 @@ export default {
     if (url.pathname === '/api/status' && request.method === 'GET') {
       if (!viewAuthorized(request)) return json({ error: 'cloudflare_access_required' }, 401);
       const record = await env.STATUS_KV.get('latest', 'json');
-      const age = record ? staleMinutes(record, Date.now()) : null;
-      const health = !record ? 'NO_DATA' : (age !== null && age > staleAfterMinutes ? 'STALE' : 'HEALTHY');
+      const { health, age } = healthState(record, staleAfterMinutes, Date.now());
       return json({ health, age_minutes: age, stale_after_minutes: staleAfterMinutes, record });
     }
 
