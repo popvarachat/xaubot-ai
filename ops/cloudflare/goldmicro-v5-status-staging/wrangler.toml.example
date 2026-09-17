@@ -1,0 +1,16 @@
+name = "goldmicro-v5-status-staging"
+main = "src/index.js"
+compatibility_date = "2026-09-17"
+workers_dev = true
+
+[vars]
+STALE_AFTER_MINUTES = "360"
+
+# Create a dedicated STAGING KV namespace at deploy gate, then replace this id.
+[[kv_namespaces]]
+binding = "STATUS_KV"
+id = "REPLACE_WITH_STAGING_KV_NAMESPACE_ID"
+
+# STATUS_INGEST_TOKEN must be stored as a Wrangler secret, never committed.
+# Dashboard/API viewing is additionally fail-closed and expects Cloudflare Access
+# to inject cf-access-authenticated-user-email.

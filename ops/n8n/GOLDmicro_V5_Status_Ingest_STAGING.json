@@ -1,0 +1,85 @@
+{
+  "name": "GOLDmicro_V5_Status_Ingest_STAGING",
+  "active": false,
+  "settings": {},
+  "nodes": [
+    {
+      "id": "webhook",
+      "name": "GOLDmicro V5 Status Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "goldmicro-v5-status-staging",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "notes": "STAGING only. Bind the existing n8n Header Auth credential before activation. Do not hard-code a token in workflow JSON."
+    },
+    {
+      "id": "validate",
+      "name": "Validate Blind Status Contract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0],
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst required = ['source','generated_at','host','git_head','state','fresh_rows','fresh_setup_events','matured_setup_events','per_block_matured','economic_outcomes','promotion'];\nfor (const key of required) { if (!(key in body)) throw new Error(`missing_${key}`); }\nif (body.source !== 'goldmicro-v5-prospective') throw new Error('source_not_allowed');\nif (body.economic_outcomes !== 'HIDDEN / NOT EVALUATED') throw new Error('economic_outcomes_must_remain_hidden');\nif (body.promotion !== 'DISABLED') throw new Error('promotion_must_remain_disabled');\nif (!Array.isArray(body.per_block_matured) || body.per_block_matured.length !== 5) throw new Error('invalid_block_counts');\nfor (const k of ['fresh_rows','fresh_setup_events','matured_setup_events']) { if (!Number.isInteger(body[k]) || body[k] < 0) throw new Error(`invalid_${k}`); }\nfor (const n of body.per_block_matured) { if (!Number.isInteger(n) || n < 0) throw new Error('invalid_block_count'); }\nreturn [{ json: { accepted: true, received_at: new Date().toISOString(), status: body } }];"
+      },
+      "notes": "Schema guard only. It deliberately rejects any payload that reveals prospective economics or enables promotion."
+    },
+    {
+      "id": "cloudflare-forward",
+      "name": "Forward Blind Status to Cloudflare STAGING",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [480, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://goldmicro-v5-status-staging.varachat-n.workers.dev/ingest",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.status }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "notes": "Bind the existing GOLDMICRO_CF_STAGING_INGEST_AUTH Header Auth credential in n8n. Credential material is intentionally not stored in GitHub."
+    },
+    {
+      "id": "respond",
+      "name": "Respond Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [720, 0],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"accepted\": true,\n  \"cloudflare_accepted\": $json.accepted,\n  \"accepted_at\": $json.accepted_at\n} }}",
+        "options": {
+          "responseCode": 202
+        }
+      }
+    }
+  ],
+  "connections": {
+    "GOLDmicro V5 Status Webhook": {
+      "main": [[{"node": "Validate Blind Status Contract", "type": "main", "index": 0}]]
+    },
+    "Validate Blind Status Contract": {
+      "main": [[{"node": "Forward Blind Status to Cloudflare STAGING", "type": "main", "index": 0}]]
+    },
+    "Forward Blind Status to Cloudflare STAGING": {
+      "main": [[{"node": "Respond Accepted", "type": "main", "index": 0}]]
+    }
+  },
+  "meta": {
+    "research_only": true,
+    "production_trading": false,
+    "economic_outcomes": "HIDDEN",
+    "promotion": "DISABLED",
+    "cloudflare_status_forwarding": "STAGING_ONLY",
+    "activation_requires_human_gate": true
+  }
+}
