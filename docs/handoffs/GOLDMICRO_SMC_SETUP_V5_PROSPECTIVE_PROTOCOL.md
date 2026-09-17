@@ -32,16 +32,36 @@ Use the current `GoldmicroSMCSetupV5` mechanics without modification:
 
 No SELL-only, session, confidence, regime, archetype, zone-type or reward filter may be added from the already-inspected development diagnostics.
 
+## Frozen prospective block geometry
+
+The development snapshot contained 24,000 raw M15 rows. Before fresh economic outcomes are opened, that already-frozen geometry is reused to define immutable prospective blocks:
+
+- 5 fixed chronological blocks
+- exactly 4,800 fresh M15 entry rows per block
+- block 1 = fresh rows 1-4,800
+- block 2 = fresh rows 4,801-9,600
+- block 3 = fresh rows 9,601-14,400
+- block 4 = fresh rows 14,401-19,200
+- block 5 = fresh rows 19,201-24,000
+- setup events are assigned to a block by ENTRY row only
+- block boundaries never move or repartition as fresh data grows
+- entry rows after fresh row 24,000 are outside the confirmatory entry window
+- bars after fresh row 24,000 may be used only to mature tail events whose entries are inside the frozen entry window
+- maturity requires the full 32-bar future horizon; incomplete tail events remain pending
+
+This amendment is based only on the already-inspected 24,000-row development geometry and is frozen before fresh economic outcomes are viewed. It does not change the prospective cutoff or generator.
+
 ## Frozen economic evaluation
 
 Reuse the V5 raw baseline contract:
 
 - horizon: 32 bars
 - same-bar TP/SL ambiguity: adverse SL-first
-- 5 non-overlapping chronological blocks over the fresh evidence window
-- minimum 30 completed events per block
+- 5 fixed non-overlapping chronological blocks defined above
+- minimum 30 completed/matured events per block
 - require positive mean after-cost R in at least 4/5 blocks under Normal cost
 - require positive mean after-cost R in at least 4/5 blocks under Conservative cost
+- if a block has fewer than 30 matured events, classify as prospective evidence insufficient rather than economic rejection
 - no ML overlay
 - no PF/DD stage unless the fresh raw baseline clears this gate
 - no threshold tuning after observing prospective results
