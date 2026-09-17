@@ -56,6 +56,12 @@ function Invoke-LoggedNative {
     }
 }
 
+function Get-BlockValue($array, [int]$index) {
+    if ($null -eq $array) { return 0 }
+    if ($array.Count -le $index) { return 0 }
+    return [int]$array[$index]
+}
+
 try {
     Write-RunLog "GOLDmicro V5 automated prospective run START"
 
@@ -90,6 +96,36 @@ try {
     $Report = ".\models\reports\event_edge_v4_20260916_132710\smc_setup_v5_prospective_readiness.json"
     if (-not (Test-Path $Report)) { throw "Readiness report missing after run: $Report" }
     $ReportJson = Get-Content -Raw -Path $Report | ConvertFrom-Json
+    $GitHead = (git rev-parse --short=12 HEAD).Trim()
+    $RunTime = (Get-Date).ToString("o")
+
+    # Always keep a compact local history independent from the large parquet snapshot.
+    $HistoryCsv = Join-Path $LogDir "prospective_run_history.csv"
+    $historyRow = [pscustomobject]@{
+        run_time = $RunTime
+        git_head = $GitHead
+        status = [string]$ReportJson.status
+        fresh_rows = [int]$ReportJson.fresh_rows
+        fresh_setup_events = [int]$ReportJson.fresh_setup_events
+        matured_setup_events = [int]$ReportJson.matured_setup_events
+        block_1 = Get-BlockValue $ReportJson.block_event_counts 0
+        block_2 = Get-BlockValue $ReportJson.block_event_counts 1
+        block_3 = Get-BlockValue $ReportJson.block_event_counts 2
+        block_4 = Get-BlockValue $ReportJson.block_event_counts 3
+        block_5 = Get-BlockValue $ReportJson.block_event_counts 4
+        economic_outcomes = "HIDDEN / NOT EVALUATED"
+        promotion = "DISABLED"
+    }
+    if (Test-Path $HistoryCsv) {
+        $historyRow | Export-Csv -Path $HistoryCsv -NoTypeInformation -Append -Encoding UTF8
+    }
+    else {
+        $historyRow | Export-Csv -Path $HistoryCsv -NoTypeInformation -Encoding UTF8
+    }
+
+    $LatestStatus = Join-Path $LogDir "latest_status.json"
+    $historyRow | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -Path $LatestStatus
+    Write-RunLog "Updated local run history and latest status"
 
     # Optional archive: point GOLDMICRO_ARCHIVE_DIR to a Google Drive Desktop-synced folder.
     if ($env:GOLDMICRO_ARCHIVE_DIR) {
@@ -103,6 +139,8 @@ try {
         if (Test-Path $Meta) {
             Copy-Item -Force $Meta (Join-Path $ArchiveDir "market_snapshot_m15_v5_prospective.json")
         }
+        Copy-Item -Force $HistoryCsv (Join-Path $ArchiveDir "prospective_run_history.csv")
+        Copy-Item -Force $LatestStatus (Join-Path $ArchiveDir "latest_status.json")
         Write-RunLog "Archived current prospective artifacts to $ArchiveDir"
     }
 
@@ -114,8 +152,9 @@ try {
         }
         $payload = @{
             source = "goldmicro-v5-prospective"
-            generated_at = (Get-Date).ToString("o")
+            generated_at = $RunTime
             host = $env:COMPUTERNAME
+            git_head = $GitHead
             state = $ReportJson.status
             fresh_rows = $ReportJson.fresh_rows
             fresh_setup_events = $ReportJson.fresh_setup_events
