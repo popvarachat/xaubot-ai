@@ -15,7 +15,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "notes": "STAGING only. Before activation bind an n8n Header Auth credential to this Webhook node. Do not hard-code a token in the workflow JSON."
+      "notes": "STAGING only. Bind the existing n8n Header Auth credential before activation. Do not hard-code a token in workflow JSON."
     },
     {
       "id": "validate",
@@ -29,14 +29,34 @@
       "notes": "Schema guard only. It deliberately rejects any payload that reveals prospective economics or enables promotion."
     },
     {
+      "id": "cloudflare-forward",
+      "name": "Forward Blind Status to Cloudflare STAGING",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [480, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://goldmicro-v5-status-staging.varachat-n.workers.dev/ingest",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.status }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "notes": "Bind the existing GOLDMICRO_CF_STAGING_INGEST_AUTH Header Auth credential in n8n. Credential material is intentionally not stored in GitHub."
+    },
+    {
       "id": "respond",
       "name": "Respond Accepted",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
-      "position": [480, 0],
+      "position": [720, 0],
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { accepted: true, received_at: $json.received_at } }}",
+        "responseBody": "={{ {\n  \"accepted\": true,\n  \"cloudflare_accepted\": $json.accepted,\n  \"accepted_at\": $json.accepted_at\n} }}",
         "options": {
           "responseCode": 202
         }
@@ -48,6 +68,9 @@
       "main": [[{"node": "Validate Blind Status Contract", "type": "main", "index": 0}]]
     },
     "Validate Blind Status Contract": {
+      "main": [[{"node": "Forward Blind Status to Cloudflare STAGING", "type": "main", "index": 0}]]
+    },
+    "Forward Blind Status to Cloudflare STAGING": {
       "main": [[{"node": "Respond Accepted", "type": "main", "index": 0}]]
     }
   },
@@ -56,6 +79,7 @@
     "production_trading": false,
     "economic_outcomes": "HIDDEN",
     "promotion": "DISABLED",
+    "cloudflare_status_forwarding": "STAGING_ONLY",
     "activation_requires_human_gate": true
   }
 }
