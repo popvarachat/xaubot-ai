@@ -72,6 +72,23 @@ function Get-ConfiguredEnvironmentVariable([string]$Name) {
     return $null
 }
 
+function Get-ProtectedToken([string]$Path) {
+    if (-not (Test-Path $Path)) {
+        throw "Configured webhook token file does not exist"
+    }
+    $secure = Import-Clixml -Path $Path
+    if ($secure -isnot [System.Security.SecureString]) {
+        throw "Configured webhook token file is invalid"
+    }
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+    try {
+        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    }
+    finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+}
+
 try {
     Write-RunLog "GOLDmicro V5 automated prospective run START"
 
@@ -158,14 +175,22 @@ try {
         Write-RunLog "Archive directory not configured; local artifacts retained"
     }
 
-    # Optional n8n/Cloudflare ingress. No URL/token is stored in the repository.
+    # Optional n8n/Cloudflare ingress. URL may be a normal user-scoped variable, while
+    # the bearer token can be held as a Windows-DPAPI protected SecureString file.
     $WebhookUrl = Get-ConfiguredEnvironmentVariable "GOLDMICRO_N8N_WEBHOOK_URL"
     if ($WebhookUrl) {
-        $headers = @{}
         $WebhookToken = Get-ConfiguredEnvironmentVariable "GOLDMICRO_N8N_WEBHOOK_TOKEN"
-        if ($WebhookToken) {
-            $headers["Authorization"] = "Bearer $WebhookToken"
+        if (-not $WebhookToken) {
+            $WebhookTokenFile = Get-ConfiguredEnvironmentVariable "GOLDMICRO_N8N_WEBHOOK_TOKEN_FILE"
+            if ($WebhookTokenFile) {
+                $WebhookToken = Get-ProtectedToken $WebhookTokenFile
+            }
         }
+        if (-not $WebhookToken) {
+            throw "Webhook URL is configured but no bearer token is available; refusing unauthenticated post"
+        }
+
+        $headers = @{ Authorization = "Bearer $WebhookToken" }
         $payload = @{
             source = "goldmicro-v5-prospective"
             generated_at = $RunTime
@@ -181,6 +206,7 @@ try {
         } | ConvertTo-Json -Depth 5
         Invoke-RestMethod -Method Post -Uri $WebhookUrl -Headers $headers -ContentType "application/json" -Body $payload | Out-Null
         Write-RunLog "Posted readiness summary to configured webhook"
+        $WebhookToken = $null
     }
 
     Write-RunLog "GOLDmicro V5 automated prospective run SUCCESS"
