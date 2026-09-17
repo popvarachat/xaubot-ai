@@ -15,6 +15,7 @@ on:
       - 'scripts/collect_goldmicro_smc_setup_v5_m15.py'
       - 'scripts/run_goldmicro_v5_daily.ps1'
       - 'scripts/install_goldmicro_v5_daily_task.ps1'
+      - 'scripts/configure_goldmicro_v5_archive.ps1'
       - 'tests/test_goldmicro_smc_setup_v5.py'
       - 'tests/test_goldmicro_smc_setup_v5_baseline.py'
       - 'tests/test_goldmicro_smc_setup_v5_readiness.py'
@@ -36,6 +37,7 @@ on:
       - 'scripts/collect_goldmicro_smc_setup_v5_m15.py'
       - 'scripts/run_goldmicro_v5_daily.ps1'
       - 'scripts/install_goldmicro_v5_daily_task.ps1'
+      - 'scripts/configure_goldmicro_v5_archive.ps1'
       - 'tests/test_goldmicro_smc_setup_v5.py'
       - 'tests/test_goldmicro_smc_setup_v5_baseline.py'
       - 'tests/test_goldmicro_smc_setup_v5_readiness.py'
@@ -82,7 +84,7 @@ jobs:
         shell: pwsh
         run: |
           $failed = $false
-          foreach ($file in @('scripts/run_goldmicro_v5_daily.ps1', 'scripts/install_goldmicro_v5_daily_task.ps1')) {
+          foreach ($file in @('scripts/run_goldmicro_v5_daily.ps1', 'scripts/install_goldmicro_v5_daily_task.ps1', 'scripts/configure_goldmicro_v5_archive.ps1')) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
