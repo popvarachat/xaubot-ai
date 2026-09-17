@@ -16,6 +16,8 @@ on:
       - 'scripts/run_goldmicro_v5_daily.ps1'
       - 'scripts/install_goldmicro_v5_daily_task.ps1'
       - 'scripts/configure_goldmicro_v5_archive.ps1'
+      - 'scripts/configure_goldmicro_v5_webhook.ps1'
+      - 'ops/n8n/GOLDmicro_V5_Status_Ingest_STAGING.json'
       - 'tests/test_goldmicro_smc_setup_v5.py'
       - 'tests/test_goldmicro_smc_setup_v5_baseline.py'
       - 'tests/test_goldmicro_smc_setup_v5_readiness.py'
@@ -38,6 +40,8 @@ on:
       - 'scripts/run_goldmicro_v5_daily.ps1'
       - 'scripts/install_goldmicro_v5_daily_task.ps1'
       - 'scripts/configure_goldmicro_v5_archive.ps1'
+      - 'scripts/configure_goldmicro_v5_webhook.ps1'
+      - 'ops/n8n/GOLDmicro_V5_Status_Ingest_STAGING.json'
       - 'tests/test_goldmicro_smc_setup_v5.py'
       - 'tests/test_goldmicro_smc_setup_v5_baseline.py'
       - 'tests/test_goldmicro_smc_setup_v5_readiness.py'
@@ -84,7 +88,7 @@ jobs:
         shell: pwsh
         run: |
           $failed = $false
-          foreach ($file in @('scripts/run_goldmicro_v5_daily.ps1', 'scripts/install_goldmicro_v5_daily_task.ps1', 'scripts/configure_goldmicro_v5_archive.ps1')) {
+          foreach ($file in @('scripts/run_goldmicro_v5_daily.ps1', 'scripts/install_goldmicro_v5_daily_task.ps1', 'scripts/configure_goldmicro_v5_archive.ps1', 'scripts/configure_goldmicro_v5_webhook.ps1')) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
@@ -94,6 +98,21 @@ jobs:
             }
           }
           if ($failed) { exit 1 }
+      - name: Validate inactive n8n staging template
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('ops/n8n/GOLDmicro_V5_Status_Ingest_STAGING.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          assert data['name'].endswith('_STAGING')
+          assert data['active'] is False
+          assert data['meta']['research_only'] is True
+          assert data['meta']['production_trading'] is False
+          assert data['meta']['economic_outcomes'] == 'HIDDEN'
+          assert data['meta']['promotion'] == 'DISABLED'
+          assert data['meta']['activation_requires_human_gate'] is True
+          PY
       - name: Smoke test V5 research CLIs
         run: >-
           python scripts/diagnose_goldmicro_smc_setup_v5_mechanics.py --help
