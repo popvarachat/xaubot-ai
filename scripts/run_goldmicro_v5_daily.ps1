@@ -20,6 +20,42 @@ function Write-RunLog([string]$Text) {
     Add-Content -Path $LogPath -Value $line
 }
 
+function Invoke-LoggedNative {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)][string[]]$ArgumentList,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+    try {
+        $process = Start-Process `
+            -FilePath $FilePath `
+            -ArgumentList $ArgumentList `
+            -WorkingDirectory $RepoRoot `
+            -NoNewWindow `
+            -Wait `
+            -PassThru `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath
+
+        if (Test-Path $stdoutPath) {
+            Get-Content $stdoutPath | Tee-Object -FilePath $LogPath -Append | Write-Host
+        }
+        if (Test-Path $stderrPath) {
+            Get-Content $stderrPath | Tee-Object -FilePath $LogPath -Append | Write-Host
+        }
+
+        if ($process.ExitCode -ne 0) {
+            throw "$Label failed with exit code $($process.ExitCode)"
+        }
+    }
+    finally {
+        Remove-Item -Force -ErrorAction SilentlyContinue $stdoutPath, $stderrPath
+    }
+}
+
 try {
     Write-RunLog "GOLDmicro V5 automated prospective run START"
 
@@ -40,14 +76,16 @@ try {
     }
 
     Write-RunLog "Running read-only MT5 collector"
-    $collector = & $Python ".\scripts\collect_goldmicro_smc_setup_v5_m15.py" --manifest $Manifest 2>&1
-    $collector | Tee-Object -FilePath $LogPath -Append | Write-Host
-    if ($LASTEXITCODE -ne 0) { throw "Collector failed with exit code $LASTEXITCODE" }
+    Invoke-LoggedNative `
+        -FilePath $Python `
+        -ArgumentList @(".\scripts\collect_goldmicro_smc_setup_v5_m15.py", "--manifest", $Manifest) `
+        -Label "Collector"
 
     Write-RunLog "Running blind readiness checker"
-    $readiness = & $Python ".\scripts\check_goldmicro_smc_setup_v5_readiness.py" --manifest $Manifest --snapshot $Snapshot 2>&1
-    $readiness | Tee-Object -FilePath $LogPath -Append | Write-Host
-    if ($LASTEXITCODE -ne 0) { throw "Readiness checker failed with exit code $LASTEXITCODE" }
+    Invoke-LoggedNative `
+        -FilePath $Python `
+        -ArgumentList @(".\scripts\check_goldmicro_smc_setup_v5_readiness.py", "--manifest", $Manifest, "--snapshot", $Snapshot) `
+        -Label "Readiness checker"
 
     $Report = ".\models\reports\event_edge_v4_20260916_132710\smc_setup_v5_prospective_readiness.json"
     if (-not (Test-Path $Report)) { throw "Readiness report missing after run: $Report" }
