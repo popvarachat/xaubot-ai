@@ -10,7 +10,7 @@ Safety properties:
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -38,6 +38,11 @@ def _load_manifest(path: Path) -> dict:
     return data
 
 
+def _epoch_to_utc_naive(epoch_seconds: int | float) -> datetime:
+    """Convert an MT5 epoch timestamp to the same UTC-naive basis used by Polars."""
+    return datetime.fromtimestamp(float(epoch_seconds), tz=timezone.utc).replace(tzinfo=None)
+
+
 def run(manifest_path: Path, symbol: str, count: int, output: Path | None) -> Path:
     manifest = _load_manifest(manifest_path)
     cutoff = parse_cutoff(str(manifest["prospective_cutoff_exclusive"]))
@@ -62,7 +67,20 @@ def run(manifest_path: Path, symbol: str, count: int, output: Path | None) -> Pa
         rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M15, 0, count)
         if rates is None or len(rates) == 0:
             raise RuntimeError(f"no M15 rates returned for {symbol}: {mt5.last_error()}")
-        fetched = drop_forming_m15_bar(normalize_mt5_rates(rates))
+
+        # IMPORTANT: anchor bar-closure logic to the broker/MT5 epoch clock, not
+        # the workstation wall clock. On some installations the terminal/server
+        # time basis differs from the OS timezone. Comparing rate epochs against
+        # datetime.now() can therefore misclassify many valid bars as "future".
+        tick = mt5.symbol_info_tick(symbol)
+        if tick is None or not getattr(tick, "time", None):
+            raise RuntimeError(f"no reference tick returned for {symbol}: {mt5.last_error()}")
+        market_reference_time = _epoch_to_utc_naive(tick.time)
+
+        fetched = drop_forming_m15_bar(
+            normalize_mt5_rates(rates),
+            now_utc=market_reference_time,
+        )
     finally:
         mt5.shutdown()
 
@@ -86,6 +104,8 @@ def run(manifest_path: Path, symbol: str, count: int, output: Path | None) -> Pa
         "prospective_rows_total": len(merged),
         "fresh_rows_total": fresh_rows,
         "latest_closed_bar_time": str(latest),
+        "market_reference_time": str(market_reference_time),
+        "bar_close_clock": "MT5_SYMBOL_TICK_EPOCH",
         "economic_outcomes": "NOT_EVALUATED",
         "orders": "NEVER_SENT",
     }
@@ -100,6 +120,7 @@ def run(manifest_path: Path, symbol: str, count: int, output: Path | None) -> Pa
     print(f"Closed MT5 rows read : {len(fetched):,}")
     print(f"Fresh rows in fetch  : {fetched_fresh:,}")
     print(f"Fresh rows total     : {fresh_rows:,}")
+    print(f"Market reference     : {market_reference_time}")
     print(f"Latest closed bar    : {latest}")
     print("Economic outcomes    : NOT EVALUATED")
     print("Orders               : NEVER SENT")
